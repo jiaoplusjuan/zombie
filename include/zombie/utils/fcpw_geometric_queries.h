@@ -17,9 +17,11 @@
 #else
     #include <zombie/utils/reflectance_boundary_bvh/bvh.h>
 #endif
+#include <fcpw/fcpw_gpu.h>
 #include <zombie/utils/reflectance_boundary_bvh/robin_bounds.h>
 
 namespace zombie {
+// const std::string& path_to_fcpw = "/home/luyan/zombie/deps/fcpw/";
 
 // loads 2D or 3D boundary mesh from OBJ file
 template <size_t DIM>
@@ -480,7 +482,7 @@ template <>
 class FcpwDirichletBoundaryHandler<2> {
 public:
     // constructor
-    FcpwDirichletBoundaryHandler() {}
+    FcpwDirichletBoundaryHandler():gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
 
     // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
     // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
@@ -498,23 +500,37 @@ public:
             fcpw::AggregateType aggregateType = buildBvh ?
                                                 fcpw::AggregateType::Bvh_SurfaceArea :
                                                 fcpw::AggregateType::Baseline;
+            std::cout<<"2-dirichlet"<<std::endl;
+            #ifdef FCPW_USE_GPU_LUYAN
+            scene.build(aggregateType, false, true, true);
+            gpuScene.transferToGPU(scene);
+        #else
             scene.build(aggregateType, enableBvhVectorization, true, true);
+        #endif
         }
     }
+    auto& get_scene(){
+        return scene;
+    }
+    auto& get_gpu_scene(){
+        return gpuScene;
+    }
 
+   private:
     // member
     fcpw::Scene<2> scene;
+    fcpw::GPUScene<2> gpuScene;
 };
 
 template <>
 class FcpwDirichletBoundaryHandler<3> {
 public:
     // constructor
-    FcpwDirichletBoundaryHandler() {}
+    FcpwDirichletBoundaryHandler():gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions and indices. Uses a simple list of
+    // mesh faces for brute-force geometric queries when buildBvh is false.
     void buildAccelerationStructure(const std::vector<Vector3>& positions,
                                     const std::vector<Vector3i>& indices,
                                     bool buildBvh=true, bool enableBvhVectorization=false) {
@@ -528,12 +544,24 @@ public:
             fcpw::AggregateType aggregateType = buildBvh ?
                                                 fcpw::AggregateType::Bvh_SurfaceArea :
                                                 fcpw::AggregateType::Baseline;
-            scene.build(aggregateType, enableBvhVectorization, true, true);
+            #ifdef FCPW_USE_GPU_LUYAN
+                        scene.build(aggregateType, false, true, true);
+                        gpuScene.transferToGPU(scene);
+            #else
+                        scene.build(aggregateType, enableBvhVectorization, true, true);
+            #endif
         }
     }
-
+    auto& get_scene(){
+        return scene;
+    }
+    auto& get_gpu_scene(){
+        return gpuScene;
+    }
+private:
     // member
     fcpw::Scene<3> scene;
+    fcpw::GPUScene<3> gpuScene;
 };
 
 template <size_t DIM>
@@ -557,49 +585,65 @@ template <>
 class FcpwNeumannBoundaryHandler<2> {
 public:
     // constructor
-    FcpwNeumannBoundaryHandler() {}
+ FcpwNeumannBoundaryHandler()
+     : gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector2>& positions,
-                                    const std::vector<Vector2i>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
-        if (positions.size() > 0) {
-            // load positions and indices
-            scene.setObjectCount(1);
-            scene.setObjectVertices(positions, 0);
-            scene.setObjectLineSegments(indices, 0);
+ // builds an FCPW acceleration structure (specifically a bounding volume
+ // hierarchy) from a set of positions and indices. Uses a simple list of
+ // mesh faces for brute-force geometric queries when buildBvh is false.
+ void buildAccelerationStructure(
+     const std::vector<Vector2>& positions,
+     const std::vector<Vector2i>& indices,
+     std::function<bool(float, int)> ignoreCandidateSilhouette,
+     bool buildBvh = true,
+     bool enableBvhVectorization = false) {
+     if (positions.size() > 0) {
+         // load positions and indices
+         scene.setObjectCount(1);
+         scene.setObjectVertices(positions, 0);
+         scene.setObjectLineSegments(indices, 0);
 
-            // compute silhouettes
-            scene.computeSilhouettes(ignoreCandidateSilhouette);
-            
-            // build aggregate
-            fcpw::AggregateType aggregateType = buildBvh ?
-                                                fcpw::AggregateType::Bvh_SurfaceArea :
-                                                fcpw::AggregateType::Baseline;
-            scene.build(aggregateType, enableBvhVectorization, true, true);
-        }
+         // compute silhouettes
+         scene.computeSilhouettes(ignoreCandidateSilhouette);
+
+         // build aggregate
+         fcpw::AggregateType aggregateType =
+             buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                      : fcpw::AggregateType::Baseline;
+        #ifdef FCPW_USE_GPU_LUYAN
+                scene.build(aggregateType, false, true, true);
+                gpuScene.transferToGPU(scene);
+        #else
+                scene.build(aggregateType, enableBvhVectorization, true, true);
+        #endif
+     }
+ }
+    auto& get_scene(){
+        return scene;
+    }
+    auto& get_gpu_scene(){
+        return gpuScene;
     }
 
-    // member
-    fcpw::Scene<2> scene;
+private:
+ // member
+ fcpw::Scene<2> scene;
+ fcpw::GPUScene<2> gpuScene;
 };
 
 template <>
 class FcpwNeumannBoundaryHandler<3> {
 public:
     // constructor
-    FcpwNeumannBoundaryHandler() {}
+ FcpwNeumannBoundaryHandler()
+     : gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector3>& positions,
-                                    const std::vector<Vector3i>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
+ void buildAccelerationStructure(
+     const std::vector<Vector3>& positions,
+     const std::vector<Vector3i>& indices,
+     std::function<bool(float, int)> ignoreCandidateSilhouette,
+     bool buildBvh = true,
+     bool enableBvhVectorization = false) {
         if (positions.size() > 0) {
             // load positions and indices
             scene.setObjectCount(1);
@@ -608,17 +652,29 @@ public:
 
             // compute silhouettes
             scene.computeSilhouettes(ignoreCandidateSilhouette);
-            
+
             // build aggregate
-            fcpw::AggregateType aggregateType = buildBvh ?
-                                                fcpw::AggregateType::Bvh_SurfaceArea :
-                                                fcpw::AggregateType::Baseline;
-            scene.build(aggregateType, enableBvhVectorization, true, true);
+            fcpw::AggregateType aggregateType =
+                buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                        : fcpw::AggregateType::Baseline;
+            #ifdef FCPW_USE_GPU_LUYAN
+                scene.build(aggregateType, false, true, true);
+                gpuScene.transferToGPU(scene);
+            #else
+                scene.build(aggregateType, enableBvhVectorization, true, true);
+            #endif
         }
+    }
+    auto& get_scene(){
+        return scene;
+    }
+    auto& get_gpu_scene(){
+        return gpuScene;
     }
 
     // member
     fcpw::Scene<3> scene;
+    fcpw::GPUScene<3> gpuScene;
 };
 
 template <size_t DIM>
@@ -981,7 +1037,9 @@ void populateSdfGrid(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler
                      SdfGrid<DIM>& sdfGrid, const Vectori<DIM>& gridShape,
                      bool computeUnsignedDistance)
 {
-    fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+    fcpw::Aggregate<DIM>* absorbingBoundaryAggregate =
+        dirichletBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     if (absorbingBoundaryAggregate) {
         std::function<Array<float, 1>(const Vector<DIM>&)> sdfDataCallback = [absorbingBoundaryAggregate, computeUnsignedDistance](
                                                                              const Vector<DIM>& x) -> Array<float, 1> {
@@ -1002,9 +1060,31 @@ template <size_t DIM>
 void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
                                                   GeometricQueries<DIM>& geometricQueries)
 {
-    fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+    fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     if (absorbingBoundaryAggregate) {
         geometricQueries.hasNonEmptyAbsorbingBoundary = true;
+        #ifdef FCPW_USE_GPU_LUYAN
+        fcpw::GPUScene<DIM> gpuScene = dirichletBoundaryHandler.get_gpu_scene();
+        // auto gpuScene = dirichletBoundaryHandler.gpuScene;
+        geometricQueries.computeDistToAbsorbingBoundary =
+            [&gpuScene](const Vector<DIM>& x,
+                        bool computeSignedDistance) -> float {
+            Vector<DIM> queryPt = x;
+            float3 queryPt3D = float3{queryPt[0], queryPt[1], 0.0f};  // 补零
+
+            // 构造查询参数
+            std::vector<fcpw::GPUBoundingSphere> spheres;
+            spheres.emplace_back(queryPt3D, fcpw::maxFloat);
+
+            // 存储结果
+            std::vector<fcpw::GPUInteraction> interactions;
+            gpuScene.findClosestPoints(spheres, interactions);
+
+            // 提取结果
+            return interactions.empty() ? 0.0f : interactions[0].d;
+        };
+#else
         geometricQueries.computeDistToAbsorbingBoundary = [absorbingBoundaryAggregate](
                                                           const Vector<DIM>& x, bool computeSignedDistance) -> float {
             Vector<DIM> queryPt = x;
@@ -1014,6 +1094,7 @@ void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<D
 
             return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
         };
+        #endif
         geometricQueries.projectToAbsorbingBoundary = [absorbingBoundaryAggregate](
                                                       Vector<DIM>& x, Vector<DIM>& normal,
                                                       float& distance, bool computeSignedDistance) -> bool {
@@ -1083,12 +1164,21 @@ void populateGeometricQueriesForReflectingBoundary(const ReflectingBoundaryAggre
         geometricQueries.hasNonEmptyReflectingBoundary = true;
         geometricQueries.computeDistToReflectingBoundary = [reflectingBoundaryAggregate](
                                                            const Vector<DIM>& x, bool computeSignedDistance) -> float {
-            Vector<DIM> queryPt = x;
-            fcpw::Interaction<DIM> interaction;
-            fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
+            // #ifdef FCPW_USE_GPU_LUYAN
+            //     Vector<DIM> queryPt = x;
+            //     fcpw::GPUInteraction<DIM> interaction;
+            //     fcpw::GPUBoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
+            //     reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
 
-            return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            //     return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            // #else                                                
+                Vector<DIM> queryPt = x;
+                fcpw::Interaction<DIM> interaction;
+                fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
+                reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
+
+                return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            // #endif
         };
         geometricQueries.projectToReflectingBoundary = [reflectingBoundaryAggregate](
                                                        Vector<DIM>& x, Vector<DIM>& normal,
@@ -1224,8 +1314,10 @@ void populateGeometricQueriesForNeumannBoundary(FcpwNeumannBoundaryHandler<DIM>&
                                                 std::function<float(float)> branchTraversalWeight,
                                                 GeometricQueries<DIM>& geometricQueries)
 {
+    // fcpw::Aggregate<DIM> *reflectingBoundaryAggregate =
+    //     neumannBoundaryHandler.scene.getSceneData()->aggregate.get();
     fcpw::Aggregate<DIM> *reflectingBoundaryAggregate =
-        neumannBoundaryHandler.scene.getSceneData()->aggregate.get();
+        neumannBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     populateGeometricQueriesForReflectingBoundary<DIM, fcpw::Aggregate<DIM>>(
         reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
     populateStarRadiusQueryForNeumannBoundary<DIM, fcpw::Aggregate<DIM>>(
