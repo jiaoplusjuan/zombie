@@ -482,28 +482,30 @@ template <>
 class FcpwDirichletBoundaryHandler<2> {
 public:
     // constructor
-    FcpwDirichletBoundaryHandler():gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
+ FcpwDirichletBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector2>& positions,
-                                    const std::vector<Vector2i>& indices,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
-        if (positions.size() > 0) {
-            // load positions and indices
-            scene.setObjectCount(1);
-            scene.setObjectVertices(positions, 0);
-            scene.setObjectLineSegments(indices, 0);
-            
-            // build aggregate
-            fcpw::AggregateType aggregateType = buildBvh ?
-                                                fcpw::AggregateType::Bvh_SurfaceArea :
-                                                fcpw::AggregateType::Baseline;
-            std::cout<<"2-dirichlet"<<std::endl;
-            #ifdef FCPW_USE_GPU_LUYAN
+ // builds an FCPW acceleration structure (specifically a bounding volume
+ // hierarchy) from a set of positions and indices. Uses a simple list of mesh
+ // faces for brute-force geometric queries when buildBvh is false.
+ void buildAccelerationStructure(const std::vector<Vector2>& positions,
+                                 const std::vector<Vector2i>& indices,
+                                 bool buildBvh = true,
+                                 bool enableBvhVectorization = false) {
+     if (positions.size() > 0) {
+         // load positions and indices
+         scene.setObjectCount(1);
+         scene.setObjectVertices(positions, 0);
+         scene.setObjectLineSegments(indices, 0);
+
+         // build aggregate
+         fcpw::AggregateType aggregateType =
+             buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                      : fcpw::AggregateType::Baseline;
+         std::cout << "2-dirichlet" << std::endl;
+        #ifdef FCPW_USE_GPU_LUYAN
             scene.build(aggregateType, false, true, true);
             gpuScene.transferToGPU(scene);
+            std::cout << "finish transfer to gpu" << std::endl;
         #else
             scene.build(aggregateType, enableBvhVectorization, true, true);
         #endif
@@ -516,7 +518,7 @@ public:
         return gpuScene;
     }
 
-   private:
+//    private:
     // member
     fcpw::Scene<2> scene;
     fcpw::GPUScene<2> gpuScene;
@@ -526,7 +528,7 @@ template <>
 class FcpwDirichletBoundaryHandler<3> {
 public:
     // constructor
-    FcpwDirichletBoundaryHandler():gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
+    FcpwDirichletBoundaryHandler():gpuScene("../deps/fcpw/", false) {}
 
     // builds an FCPW acceleration structure (specifically a bounding volume
     // hierarchy) from a set of positions and indices. Uses a simple list of
@@ -558,7 +560,7 @@ public:
     auto& get_gpu_scene(){
         return gpuScene;
     }
-private:
+// private:
     // member
     fcpw::Scene<3> scene;
     fcpw::GPUScene<3> gpuScene;
@@ -585,8 +587,7 @@ template <>
 class FcpwNeumannBoundaryHandler<2> {
 public:
     // constructor
- FcpwNeumannBoundaryHandler()
-     : gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
+ FcpwNeumannBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
 
  // builds an FCPW acceleration structure (specifically a bounding volume
  // hierarchy) from a set of positions and indices. Uses a simple list of
@@ -625,7 +626,7 @@ public:
         return gpuScene;
     }
 
-private:
+// private:
  // member
  fcpw::Scene<2> scene;
  fcpw::GPUScene<2> gpuScene;
@@ -636,7 +637,7 @@ class FcpwNeumannBoundaryHandler<3> {
 public:
     // constructor
  FcpwNeumannBoundaryHandler()
-     : gpuScene("/home/luyan/zombie/deps/fcpw/", false) {}
+     : gpuScene("../deps/fcpw/", false) {}
 
  void buildAccelerationStructure(
      const std::vector<Vector3>& positions,
@@ -1065,22 +1066,34 @@ void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<D
     if (absorbingBoundaryAggregate) {
         geometricQueries.hasNonEmptyAbsorbingBoundary = true;
         #ifdef FCPW_USE_GPU_LUYAN
-        fcpw::GPUScene<DIM> gpuScene = dirichletBoundaryHandler.get_gpu_scene();
+        // fcpw::GPUScene<DIM> gpuScene = dirichletBoundaryHandler.get_gpu_scene();
+        // fcpw::GPUScene<DIM> gpuScene("../deps/fcpw/", false);
+        // gpuScene.transferToGPU(dirichletBoundaryHandler.scene);
         // auto gpuScene = dirichletBoundaryHandler.gpuScene;
+        // std::cout << "finish local transfer" << std::endl;
         geometricQueries.computeDistToAbsorbingBoundary =
-            [&gpuScene](const Vector<DIM>& x,
+            [&dirichletBoundaryHandler](const Vector<DIM>& x,//[&gpuScene]
                         bool computeSignedDistance) -> float {
+            // std::cout << "start to run query" << std::endl;
             Vector<DIM> queryPt = x;
             float3 queryPt3D = float3{queryPt[0], queryPt[1], 0.0f};  // 补零
 
             // 构造查询参数
             std::vector<fcpw::GPUBoundingSphere> spheres;
             spheres.emplace_back(queryPt3D, fcpw::maxFloat);
+            // std::cout << "finish emplace_back" << std::endl;
 
             // 存储结果
             std::vector<fcpw::GPUInteraction> interactions;
-            gpuScene.findClosestPoints(spheres, interactions);
+            dirichletBoundaryHandler.get_gpu_scene().findClosestPoints(spheres, interactions);
+            // gpuScene.findClosestPoints(spheres, interactions);
+            // std::cout << "finish findClosestPoints" << std::endl;
 
+            if (interactions.empty()) {
+                std::cerr << "Error: No interactions found!" << std::endl;
+                return 0.0f;  // 或处理错误
+            }
+            // std::cout << "finish to run query" << std::endl;
             // 提取结果
             return interactions.empty() ? 0.0f : interactions[0].d;
         };
