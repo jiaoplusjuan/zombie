@@ -11,3 +11,4 @@
 #include <zombie/utils/nearest_neighbor_finder.h>
 #include <zombie/utils/dense_grid.h>
 #include <zombie/utils/progress.h>
+#include <zombie/point_estimation/ours.h>

@@ -340,4 +340,42 @@ struct SamplePoint {
     bool estimateBoundaryNormalAligned;
 };
 
+template <typename T, size_t DIM>
+struct CachesPoint{
+   Vector<DIM> point;
+   T value = 0.0f;
+   Vector<DIM> normal;
+   float direction_normal = 0.0f;
+   bool isOnNeumann = false;
+   T jacobi = 0.0f;
+};
+
+template <typename T, size_t DIM>
+struct CachesBall {
+    Vector<DIM> center;
+    T radius;
+    std::vector<CachesPoint<T, DIM>> points;  // 修正点1：使用标准容器存储结构体
+
+    // 修正点2：构造函数参数类型匹配
+    CachesBall(const Vector<DIM>& center, T radius)
+        : center(center), radius(radius) {}
+
+    // 修正点3：参数类型显式声明
+    void addPoint(const Vector<DIM>& point, T value, 
+                 const Vector<DIM>& normal,
+                 float direction_normal = 0.0f,
+                 bool isOnNeumann = false,
+                 T jacobi = 0.0f) {
+        points.push_back({point, value, normal, direction_normal, isOnNeumann, jacobi});
+    }
+
+    // 修正点4：返回类型完整声明
+    std::vector<CachesPoint<T, DIM>> getPoints() const {
+        return points;
+    }
+
+    Vector<DIM> getCenter() const { return center; }
+    T getRadius() const { return radius; }
+};
+
 } // zombie

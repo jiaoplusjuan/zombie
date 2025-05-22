@@ -1,0 +1,1 @@
+python pfm2image.py pfms /home/tony/workspace/tsinghua/wos/zombie/demo/model_problems/engine/solutions/ours_color.pfm

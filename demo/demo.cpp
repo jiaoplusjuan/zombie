@@ -416,6 +416,58 @@ void getSolution(const std::vector<zombie::rws::EvaluationPoint<T, DIM>>& evalPt
 }
 
 template <typename T, size_t DIM>
+void runOurs(const json& solverConfig,
+                    const zombie::GeometricQueries<DIM>& queries,
+                    const zombie::PDE<T, DIM>& pde,
+                    bool solveDoubleSided,
+                    std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
+                    std::vector<zombie::CachesBall<T, DIM>>& cachesBalls)
+{
+    // load config settings
+    const float epsilonShellForAbsorbingBoundary = getOptional<float>(solverConfig, "epsilonShellForAbsorbingBoundary", 1e-3f);
+    const float epsilonShellForReflectingBoundary = getOptional<float>(solverConfig, "epsilonShellForReflectingBoundary", 1e-3f);
+    const float silhouettePrecision = getOptional<float>(solverConfig, "silhouettePrecision", 1e-3f);
+    const float russianRouletteThreshold = getOptional<float>(solverConfig, "russianRouletteThreshold", 0.0f);
+    const float splittingThreshold = getOptional<float>(solverConfig, "splittingThreshold", std::numeric_limits<float>::max());
+
+    const int nWalks = getOptional<int>(solverConfig, "nWalks", 128);
+    const int maxWalkLength = getOptional<int>(solverConfig, "maxWalkLength", 1024);
+    const int stepsBeforeApplyingTikhonov = getOptional<int>(solverConfig, "stepsBeforeApplyingTikhonov", 0);
+    const int stepsBeforeUsingMaximalSpheres = getOptional<int>(solverConfig, "stepsBeforeUsingMaximalSpheres", maxWalkLength);
+
+    const bool disableGradientControlVariates = getOptional<bool>(solverConfig, "disableGradientControlVariates", false);
+    const bool disableGradientAntitheticVariates = getOptional<bool>(solverConfig, "disableGradientAntitheticVariates", false);
+    const bool useCosineSamplingForDirectionalDerivatives = getOptional<bool>(solverConfig, "useCosineSamplingForDirectionalDerivatives", false);
+    const bool ignoreAbsorbingBoundaryContribution = getOptional<bool>(solverConfig, "ignoreAbsorbingBoundaryContribution", false);
+    const bool ignoreReflectingBoundaryContribution = getOptional<bool>(solverConfig, "ignoreReflectingBoundaryContribution", false);
+    const bool ignoreSourceContribution = getOptional<bool>(solverConfig, "ignoreSourceContribution", false);
+    const bool printLogs = getOptional<bool>(solverConfig, "printLogs", false);
+    const bool runSingleThreaded = getOptional<bool>(solverConfig, "runSingleThreaded", false);
+
+    // initialize solver and estimate solution
+    ProgressBar pb(samplePts.size());
+    std::function<void(int, int)> reportProgress = getReportProgressCallback(pb);
+
+    zombie::WalkSettings walkSettings(epsilonShellForAbsorbingBoundary,
+                                      epsilonShellForReflectingBoundary,
+                                      silhouettePrecision, russianRouletteThreshold,
+                                      splittingThreshold, maxWalkLength,
+                                      stepsBeforeApplyingTikhonov,
+                                      stepsBeforeUsingMaximalSpheres,
+                                      solveDoubleSided,
+                                      !disableGradientControlVariates,
+                                      !disableGradientAntitheticVariates,
+                                      useCosineSamplingForDirectionalDerivatives,
+                                      ignoreAbsorbingBoundaryContribution,
+                                      ignoreReflectingBoundaryContribution,
+                                      ignoreSourceContribution, printLogs);
+    std::vector<int> nWalksVector(samplePts.size(), nWalks);
+    zombie::CachesBallMethod<T, DIM> cachesBallMethods(queries);
+    cachesBallMethods.solve(pde, walkSettings, nWalksVector, samplePts, cachesBalls, runSingleThreaded, reportProgress);
+    pb.finish();
+}
+
+template <typename T, size_t DIM>
 void runSolver(const std::string& solverType, const json& config,
                const std::vector<zombie::Vector<DIM>>& absorbingBoundaryPositions,
                const std::vector<zombie::Vectori<DIM>>& absorbingBoundaryIndices,
@@ -465,7 +517,18 @@ void runSolver(const std::string& solverType, const json& config,
         // extract solution from evaluation points
         getSolution<T, DIM>(evalPts, sampleCounts, solution);
 
-    } else {
+    } else if (solverType == "saveballs"){  
+        // create sample points to estimate solution at
+        std::vector<zombie::SamplePoint<T, DIM>> samplePts;
+        std::vector<zombie::CachesBall<T, DIM>> cachesBalls;
+        createSamplePoints<T, DIM>(solveLocations, distanceInfo, samplePts);
+
+        // run ours
+        runOurs<T, DIM>(config, queries, pde, solveDoubleSided, samplePts, cachesBalls);
+
+        // extract solution from sample points
+        getSolution<T, DIM>(samplePts, solution);
+    } else{
         std::cerr << "Unknown solver type: " << solverType << std::endl;
         exit(EXIT_FAILURE);
     }
