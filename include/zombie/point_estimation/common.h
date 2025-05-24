@@ -369,6 +369,76 @@ struct CachesBall {
         points.push_back({point, value, normal, direction_normal, isOnNeumann, jacobi});
     }
 
+    void addPoint(const CachesPoint<T, DIM>& point) {
+        points.push_back(point);
+    }
+
+    bool satisfyBallCondition(const Vector<DIM>& point) const {
+        double distance = (point - center).norm();
+        // std::cout << "POINT";
+        // std::cout << point - center << " " << distance << std::endl;
+        bool inside = distance <= radius;
+        if (inside) {
+            if(distance >= 0.5 * radius) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    double getPossionKernel(const Vector<DIM>& point, 
+                            const Vector<DIM>& normal, int k){
+        int dim = point.size();
+        if(dim == 2){
+            double const_num = 1 / (2 * M_PI);
+            // 计算new_x
+            CachesPoint y = points[k];
+            
+            Vector<DIM> new_x = (point - center) * radius * radius/ ((point - center).dot(point -center)) + center;
+
+            Vector<DIM> new_point = (y.point - new_x) / ((y.point - new_x).dot(y.point - new_x)) - (y.point - point) / ((y.point - new_x).dot(y.point - new_x));
+            double dot_product = new_point.dot(normal);
+            return -1 * const_num * dot_product;
+        }else{
+            std::cout << "NOT IMPLEMENTED" << std::endl;
+            return 0;
+        }
+    }
+
+    double getPossionKernel2(const Vector<DIM>& point, 
+                            const Vector<DIM>& normal, int k){
+        int dim = point.size();
+        if(dim == 2){
+            CachesPoint y = points[k];
+            return (radius * radius - ((point - center).dot(point -center))) / (2 * M_PI * radius * ((y.point - point).dot(y.point - point)));
+        }else{
+            std::cout << "NOT IMPLEMENTED" << std::endl;
+            return 0;
+        }
+    }
+
+    double getEstimatedSolution(const Vector<DIM>& point, const Vector<DIM>& normal) {
+        // std::cout << "start" << std::endl;
+        // for(int i = 0; i < points.size(); i++){
+        //     std::cout << points[i].point << " " << points[i].value << std::endl;
+        // }
+        double ans = 0;
+        // for(int i = 0; i < points.size(); i++){
+        //     std::cout << (points[i].point - center).dot(points[i].point - center) << " " << radius * radius << std::endl;
+        // }
+        for(int i = 0; i < points.size(); i++){
+            // ans += points[i].value * getPossionKernel(point, normal, i) * radius;
+            ans += points[i].value * getPossionKernel2(point, normal, i);
+            // std::cout << points[i].value << " " << getPossionKernel2(point, normal, i) << std::endl;
+        }
+        return ans * (2 * M_PI * radius) / points.size();
+    }
+
+    int getSampleCount() const {
+        return points.size();
+    }
+
     // 修正点4：返回类型完整声明
     std::vector<CachesPoint<T, DIM>> getPoints() const {
         return points;

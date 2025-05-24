@@ -36,6 +36,6 @@ std::shared_ptr<Image<3>> getColormappedImage(std::shared_ptr<Image<3>>& image,
             color->get(i, j) = applyColormap(val, colormap);
         }
     }
-
+    std::cout << "Colormapped image created with colormap: " << colormap << std::endl;
     return color;
 }

@@ -75,6 +75,7 @@ void saveGridValues(const json& config, std::string directoryPath,
     std::string ext = path.extension().string();
 
     if (saveColormapped) {
+        std::cout << "Writing colormapped image to disk..." << std::endl;
         getColormappedImage(gridValues, colormap, colormapMinVal, colormapMaxVal)->write(basePath + "_color" + ext);
     }
 }

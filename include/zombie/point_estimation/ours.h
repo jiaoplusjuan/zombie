@@ -77,7 +77,9 @@ protected:
                             float firstSphereRadius,
                             bool flipNormalOrientation,
                             pcg32& sampler, WalkState<T, DIM>& state,
-                            std::queue<WalkState<T, DIM>>& stateQueue) const;
+                            std::queue<WalkState<T, DIM>>& stateQueue,
+                            CachesPoint<T, DIM>& cachesPoint
+                        ) const;
 
     // returns the terminal contribution from the end of the walk
     T getTerminalContribution(WalkCompletionCode code,
@@ -88,7 +90,8 @@ protected:
     // estimates only the solution of the given PDE at the input point
     void estimateSolution(const PDE<T, DIM>& pde,
                           const WalkSettings& walkSettings,
-                          int nWalks, SamplePoint<T, DIM>& samplePt) const;
+                          int nWalks, SamplePoint<T, DIM>& samplePt,
+                        std::vector<CachesBall<T, DIM>>& cachesBalls) const;
 
     // estimates the solution and gradient of the given PDE at the input point;
     // NOTE: assumes the point does not lie on the boundary; the directional derivative
@@ -136,7 +139,7 @@ inline void CachesBallMethod<T, DIM>::solve(const PDE<T, DIM>& pde,
 
         } else {
             // std::cout << "Estimating solution..." << std::endl;
-            estimateSolution(pde, walkSettings, nWalks, samplePt);
+            estimateSolution(pde, walkSettings, nWalks, samplePt, cachesBalls);
         }
     }
 }
@@ -332,7 +335,9 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
                                                     float firstSphereRadius,
                                                     bool flipNormalOrientation,
                                                     pcg32& sampler, WalkState<T, DIM>& state,
-                                                    std::queue<WalkState<T, DIM>>& stateQueue) const
+                                                    std::queue<WalkState<T, DIM>>& stateQueue,
+                                                    CachesPoint<T, DIM>& cachesPoint
+                                                ) const
 {
     // recursively perform a random walk till it reaches the absorbing boundary
     bool firstStep = true;
@@ -460,6 +465,10 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
 
         // compute the distance to the absorbing boundary
         distToAbsorbingBoundary = queries.computeDistToAbsorbingBoundary(state.currentPt, false);
+        if(firstStep){
+            cachesPoint.point = state.currentPt;
+            cachesPoint.normal = state.currentNormal;
+        }
         firstStep = false;
     }
 
@@ -495,7 +504,9 @@ inline T CachesBallMethod<T, DIM>::getTerminalContribution(WalkCompletionCode co
 template <typename T, size_t DIM>
 inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
                                                   const WalkSettings& walkSettings,
-                                                  int nWalks, SamplePoint<T, DIM>& samplePt) const
+                                                  int nWalks, SamplePoint<T, DIM>& samplePt,
+                                                    std::vector<CachesBall<T, DIM>>& cachesBalls
+                                                ) const
 {
     // check if there are no previous estimates
     bool hasPrevEstimates = samplePt.statistics.getSolutionEstimateCount() > 0;
@@ -531,6 +542,8 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
     Vector<DIM> prevDirection = samplePt.normal;
     float prevDistance = std::numeric_limits<float>::max();
     bool flipNormalOrientation = false;
+
+    CachesBall<T, DIM> cachesBall(samplePt.pt, samplePt.distToAbsorbingBoundary);
 
     if (walkSettings.solveDoubleSided && samplePt.type == SampleType::OnReflectingBoundary) {
         if (samplePt.estimateBoundaryNormalAligned) {
@@ -582,6 +595,7 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
         int splitsPerformed = -1;
         T totalContribution = T(0.0f);
         bool success = false;
+        CachesPoint <T, DIM> cachesPoint;
 
         while (!stateQueue.empty()) {
             state = stateQueue.front();
@@ -604,11 +618,14 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
                 distToAbsorbingBoundary = queries.computeDistToAbsorbingBoundary(state.currentPt, false);
                 firstSphereRadius = 0.0f;
             }
+            // 存储第一次walk的点的坐标和函数值
 
+            
             // perform the walk with the dequeued state
             WalkCompletionCode code = walk(pde, walkSettings, distToAbsorbingBoundary,
                                            firstSphereRadius, flipNormalOrientation,
-                                           samplePt.sampler, state, stateQueue);
+                                           samplePt.sampler, state, stateQueue,cachesPoint
+                                        );
 
             if (code == WalkCompletionCode::ReachedAbsorbingBoundary ||
                 code == WalkCompletionCode::TerminatedWithRussianRoulette ||
@@ -618,19 +635,27 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
                 totalContribution += state.throughput*terminalContribution +
                                      state.totalReflectingBoundaryContribution +
                                      state.totalSourceContribution;
-
+                // std::cout << "Walk contribution: " << totalContribution << std::endl;
+                // std::cout << state.throughput << " " << state.totalReflectingBoundaryContribution << " "<< state.totalSourceContribution << std::endl;
                 // record the walk length
                 samplePt.statistics.addWalkLength(state.walkLength);
+                cachesPoint.value = totalContribution;
                 success = true;
             }
         }
 
         if (success) {
+            cachesBall.addPoint(cachesPoint);
             // update statistics
             samplePt.statistics.addSolutionEstimate(totalContribution);
             samplePt.statistics.addSplits(splitsPerformed);
         }
     }
+
+    //if(cachesBall.radius >= 0.1){
+        cachesBalls.push_back(cachesBall);
+    //}
+
 }
 
 template <typename T, size_t DIM>
@@ -766,10 +791,11 @@ inline void CachesBallMethod<T, DIM>::estimateSolutionAndGradient(const PDE<T, D
 
                 // compute the distance to the absorbing boundary
                 float distToAbsorbingBoundary = queries.computeDistToAbsorbingBoundary(state.currentPt, false);
-
+                
+                CachesPoint <T, DIM> cachesPoint;
                 // perform the walk with the dequeued state
                 WalkCompletionCode code = walk(pde, walkSettings, distToAbsorbingBoundary, 0.0f,
-                                               false, samplePt.sampler, state, stateQueue);
+                                               false, samplePt.sampler, state, stateQueue,cachesPoint);
 
                 if (code == WalkCompletionCode::ReachedAbsorbingBoundary ||
                     code == WalkCompletionCode::TerminatedWithRussianRoulette ||

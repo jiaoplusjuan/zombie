@@ -1,7 +1,7 @@
 {
     "solverType": "wost",
     "solver": {
-        "nWalks": 128,
+        "nWalks": 8,
         "maxWalkLength": 1024,
         "epsilonShellForAbsorbingBoundary": 1e-3,
         "epsilonShellForReflectingBoundary": 1e-3,
@@ -13,7 +13,7 @@
     },
     "modelProblem": {
         "geometry": "demo/model_problems/engine/data/geometry.obj",
-        "isReflectingBoundary": "demo/model_problems/engine/data/is_reflecting_boundary.pfm",
+        "isReflectingBoundary": "demo/model_problems/engine/data/output_zeroed.pfm",
         "absorbingBoundaryValue": "demo/model_problems/engine/data/absorbing_boundary_value.pfm",
         "reflectingBoundaryValue": "demo/model_problems/engine/data/reflecting_boundary_value.pfm",
         "sourceValue": "demo/model_problems/engine/data/source_value.pfm",

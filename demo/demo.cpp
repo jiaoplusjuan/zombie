@@ -468,6 +468,46 @@ void runOurs(const json& solverConfig,
 }
 
 template <typename T, size_t DIM>
+void getSolutionOurs(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
+                 std::vector<T>& solution,
+                std::vector<zombie::CachesBall<T, DIM>>& cachesBalls)
+{   
+    std::cout << cachesBalls.size() << std::endl;
+    // for(int i = 0; i < (int)cachesBalls.size(); i++){
+    //     std::cout << cachesBalls[i].center;
+    // }
+    solution.resize(samplePts.size(), T(0.0f));
+    for (int i = 0; i < (int)samplePts.size(); i++) {
+        double ans = 0.0;
+        int count = 0;
+        for(int j = 0; j < (int)cachesBalls.size(); j++){
+            if(cachesBalls[j].satisfyBallCondition(samplePts[i].pt)){
+                ans += cachesBalls[j].getEstimatedSolution(samplePts[i].pt, samplePts[i].normal);
+                count += 1;
+            }
+        }
+        if(count == 0){
+            solution[i] = 0.0;
+        }
+        else{
+            solution[i] = ans / count;
+        }
+        if(solution[i] >= 1 || solution[i] < 0){
+            std::cout << "solution: " << solution[i] << std::endl;
+        }
+        // 打印进度
+        if (i % 100 == 0) {
+            std::cout << "Progress: " << (i * 100.0 / samplePts.size()) << "%\r";
+            std::cout.flush();
+        }
+    }
+
+    for (int i = 0; i < (int)samplePts.size(); i++) {
+        std::cout << solution[i] << std::endl;
+    }
+}
+
+template <typename T, size_t DIM>
 void runSolver(const std::string& solverType, const json& config,
                const std::vector<zombie::Vector<DIM>>& absorbingBoundaryPositions,
                const std::vector<zombie::Vectori<DIM>>& absorbingBoundaryIndices,
@@ -527,7 +567,7 @@ void runSolver(const std::string& solverType, const json& config,
         runOurs<T, DIM>(config, queries, pde, solveDoubleSided, samplePts, cachesBalls);
 
         // extract solution from sample points
-        getSolution<T, DIM>(samplePts, solution);
+        getSolutionOurs<T, DIM>(samplePts, solution, cachesBalls);
     } else{
         std::cerr << "Unknown solver type: " << solverType << std::endl;
         exit(EXIT_FAILURE);
