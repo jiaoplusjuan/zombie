@@ -153,7 +153,7 @@ inline void WalkOnStars<T, DIM>::solve(const PDE<T, DIM>& pde,
                 std::cout << "Solving point " << i << " of " << nPoints << std::endl;
             }
             solve(pde, walkSettings, nWalks[i], samplePts[i]);
-            std::cout << "finish solve" << std::endl;
+            // std::cout << "finish solve" << std::endl;
             if (reportProgress) reportProgress(1, 0);
         }
 

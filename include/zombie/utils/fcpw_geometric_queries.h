@@ -1220,7 +1220,7 @@ void populateGeometricQueriesForDirichletBoundary(
             fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
             absorbingBoundaryAggregate->findClosestPoint(sphere, interaction,
                                                          computeSignedDistance);
-            std::cout << "finish cpu find" << std::endl;
+            // std::cout << "finish cpu find" << std::endl;
             return computeSignedDistance ? interaction.signedDistance(queryPt)
                                          : interaction.d;
         };

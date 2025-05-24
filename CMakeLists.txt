@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15...3.27)
 project(zombie)
 
 option(ZOMBIE_BUILD_DEMO "Build demo" ON)
+option(ZOMBIE_BUILD_DEMO_3d "Build demo_3d" ON)
 option(ZOMBIE_BUILD_BINDINGS "Build bindings" OFF)
 
 ################################################################################
@@ -64,6 +65,10 @@ target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
 # build demo
 if(ZOMBIE_BUILD_DEMO)
     add_subdirectory(demo)
+endif()
+
+if(ZOMBIE_BUILD_DEMO_3d)
+    add_subdirectory(demo_3d)
 endif()
 
 # build Python bindings
