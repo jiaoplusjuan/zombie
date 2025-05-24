@@ -37,6 +37,7 @@ if (FCPW_ENABLE_GPU_SUPPORT)
     #     ${FCPW_SLANG_GLSLANG_LIBRARY}
     #     ${FCPW_GFX_LIBRARY}
     # )
+    message("USE GPU SUPPORT")
     target_compile_definitions(demo PRIVATE -DFCPW_USE_GPU_LUYAN)
     target_link_libraries(demo
     ${FCPW_GFX_LIBRARY}

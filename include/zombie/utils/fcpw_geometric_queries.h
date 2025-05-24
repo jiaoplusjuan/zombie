@@ -1,23 +1,27 @@
-// This file provides utility functions to load 2D or 3D boundary meshes from OBJ files,
-// normalize mesh positions to lie within a unit sphere, swap mesh indices to flip orientation,
-// and compute the bounding box of a mesh. The FcpwBoundaryHandler class builds an acceleration
-// structure to perform geometric queries against a mesh, while the 'populateGeometricQueriesForBoundary'
-// functions populate the GeometricQueries structure using FcpwBoundaryHandler objects for the
-// absorbing (Dirichlet) and reflecting (Neumann or Robin) boundaries.
+// This file provides utility functions to load 2D or 3D boundary meshes from
+// OBJ files, normalize mesh positions to lie within a unit sphere, swap mesh
+// indices to flip orientation, and compute the bounding box of a mesh. The
+// FcpwBoundaryHandler class builds an acceleration structure to perform
+// geometric queries against a mesh, while the
+// 'populateGeometricQueriesForBoundary' functions populate the GeometricQueries
+// structure using FcpwBoundaryHandler objects for the absorbing (Dirichlet) and
+// reflecting (Neumann or Robin) boundaries.
 
 #pragma once
 
-#include <zombie/core/distributions.h>
-#include <cmath>
 #include <fcpw/utilities/scene_loader.h>
-#include <zombie/utils/sdf_grid_geometric_queries.h>
+#include <zombie/core/distributions.h>
 #include <zombie/utils/reflectance_boundary_bvh/baseline.h>
+#include <zombie/utils/sdf_grid_geometric_queries.h>
+#include <cmath>
 #ifdef FCPW_USE_ENOKI
-    #include <zombie/utils/reflectance_boundary_bvh/mbvh.h>
+#include <zombie/utils/reflectance_boundary_bvh/mbvh.h>
 #else
-    #include <zombie/utils/reflectance_boundary_bvh/bvh.h>
+#include <zombie/utils/reflectance_boundary_bvh/bvh.h>
 #endif
+#ifdef FCPW_USE_GPU_LUYAN
 #include <fcpw/fcpw_gpu.h>
+#endif
 #include <zombie/utils/reflectance_boundary_bvh/robin_bounds.h>
 
 namespace zombie {
@@ -31,7 +35,7 @@ void loadBoundaryMesh(const std::string& objFile,
 template <size_t DIM>
 void loadTexturedBoundaryMesh(const std::string& objFile,
                               std::vector<Vector<DIM>>& positions,
-                              std::vector<Vector<DIM-1>>& textureCoordinates,
+                              std::vector<Vector<DIM - 1>>& textureCoordinates,
                               std::vector<Vectori<DIM>>& indices,
                               std::vector<Vectori<DIM>>& textureIndices);
 
@@ -46,8 +50,10 @@ template <size_t DIM>
 void flipOrientation(std::vector<Vectori<DIM>>& indices);
 
 template <size_t DIM>
-std::pair<Vector<DIM>, Vector<DIM>> computeBoundingBox(const std::vector<Vector<DIM>>& positions,
-                                                       bool makeSquare, float scale);
+std::pair<Vector<DIM>, Vector<DIM>> computeBoundingBox(
+    const std::vector<Vector<DIM>>& positions,
+    bool makeSquare,
+    float scale);
 
 template <size_t DIM>
 void addBoundingBoxToBoundaryMesh(const Vector<DIM>& boundingBoxMin,
@@ -55,93 +61,107 @@ void addBoundingBoxToBoundaryMesh(const Vector<DIM>& boundingBoxMin,
                                   std::vector<Vector<DIM>>& positions,
                                   std::vector<Vectori<DIM>>& indices);
 
-// partitions boundary mesh into absorbing and reflecting parts using primitive centroids---
-// this assumes the boundary discretization is perfectly adapted to the boundary conditions,
-// which isn't always a correct assumption
+// partitions boundary mesh into absorbing and reflecting parts using primitive
+// centroids--- this assumes the boundary discretization is perfectly adapted to
+// the boundary conditions, which isn't always a correct assumption
 template <size_t DIM>
-void partitionBoundaryMesh(std::function<bool(const Vector<DIM>&)> onReflectingBoundary,
-                           const std::vector<Vector<DIM>>& positions,
-                           const std::vector<Vectori<DIM>>& indices,
-                           std::vector<Vector<DIM>>& absorbingPositions,
-                           std::vector<Vectori<DIM>>& absorbingIndices,
-                           std::vector<Vector<DIM>>& reflectingPositions,
-                           std::vector<Vectori<DIM>>& reflectingIndices);
+void partitionBoundaryMesh(
+    std::function<bool(const Vector<DIM>&)> onReflectingBoundary,
+    const std::vector<Vector<DIM>>& positions,
+    const std::vector<Vectori<DIM>>& indices,
+    std::vector<Vector<DIM>>& absorbingPositions,
+    std::vector<Vectori<DIM>>& absorbingIndices,
+    std::vector<Vector<DIM>>& reflectingPositions,
+    std::vector<Vectori<DIM>>& reflectingIndices);
 
-// Helper classes to build an acceleration structure to perform geometric queries such as
-// ray intersections, closest points, etc. against a boundary mesh with Dirichlet, Neumann
-// and Robin conditions.
+// Helper classes to build an acceleration structure to perform geometric
+// queries such as ray intersections, closest points, etc. against a boundary
+// mesh with Dirichlet, Neumann and Robin conditions.
 template <size_t DIM>
 class FcpwDirichletBoundaryHandler {
-public:
+   public:
     // constructor
     FcpwDirichletBoundaryHandler();
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions and indices. Uses a simple list of
+    // mesh faces for brute-force geometric queries when buildBvh is false.
     void buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
                                     const std::vector<Vectori<DIM>>& indices,
-                                    bool buildBvh=true, bool enableBvhVectorization=false);
+                                    bool buildBvh = true,
+                                    bool enableBvhVectorization = false);
 };
 
 template <size_t DIM>
 class FcpwNeumannBoundaryHandler {
-public:
+   public:
     // constructor
     FcpwNeumannBoundaryHandler();
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions and indices. Uses a simple list of mesh faces for brute-force geometric
-    // queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
-                                    const std::vector<Vectori<DIM>>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    bool buildBvh=true, bool enableBvhVectorization=false);
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions and indices. Uses a simple list of
+    // mesh faces for brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(
+        const std::vector<Vector<DIM>>& positions,
+        const std::vector<Vectori<DIM>>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false);
 };
 
 template <size_t DIM>
 class FcpwRobinBoundaryHandler {
-public:
+   public:
     // constructor
     FcpwRobinBoundaryHandler();
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions, indices, and min and max absolute coefficient values per mesh face.
-    // Uses a simple list of mesh faces for brute-force geometric queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
-                                    const std::vector<Vectori<DIM>>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    const std::vector<float>& minRobinCoeffValues,
-                                    const std::vector<float>& maxRobinCoeffValues,
-                                    bool buildBvh=true, bool enableBvhVectorization=false);
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions, indices, and min and max absolute
+    // coefficient values per mesh face. Uses a simple list of mesh faces for
+    // brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(
+        const std::vector<Vector<DIM>>& positions,
+        const std::vector<Vectori<DIM>>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        const std::vector<float>& minRobinCoeffValues,
+        const std::vector<float>& maxRobinCoeffValues,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false);
 
     // updates the Robin coefficients on the boundary mesh
     void updateCoefficientValues(const std::vector<float>& minRobinCoeffValues,
                                  const std::vector<float>& maxRobinCoeffValues);
 };
 
-std::function<bool(float, int)> getIgnoreCandidateSilhouetteCallback(bool solveDoubleSided=false,
-                                                                     float silhouettePrecision=1e-3f);
+std::function<bool(float, int)> getIgnoreCandidateSilhouetteCallback(
+    bool solveDoubleSided = false,
+    float silhouettePrecision = 1e-3f);
 
 template <size_t DIM>
-void populateSdfGrid(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
-                     SdfGrid<DIM>& sdfGrid, const Vectori<DIM>& gridShape,
-                     bool computeUnsignedDistance=false);
+void populateSdfGrid(
+    FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
+    SdfGrid<DIM>& sdfGrid,
+    const Vectori<DIM>& gridShape,
+    bool computeUnsignedDistance = false);
 
 // populates the GeometricQueries structure
 template <size_t DIM>
-void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
-                                                  GeometricQueries<DIM>& geometricQueries);
+void populateGeometricQueriesForDirichletBoundary(
+    FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
+    GeometricQueries<DIM>& geometricQueries);
 template <size_t DIM>
-void populateGeometricQueriesForNeumannBoundary(FcpwNeumannBoundaryHandler<DIM>& neumannBoundaryHandler,
-                                                std::function<float(float)> branchTraversalWeight,
-                                                GeometricQueries<DIM>& geometricQueries);
+void populateGeometricQueriesForNeumannBoundary(
+    FcpwNeumannBoundaryHandler<DIM>& neumannBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<DIM>& geometricQueries);
 template <size_t DIM>
-void populateGeometricQueriesForRobinBoundary(FcpwRobinBoundaryHandler<DIM>& robinBoundaryHandler,
-                                              std::function<float(float)> branchTraversalWeight,
-                                              GeometricQueries<DIM>& geometricQueries);
+void populateGeometricQueriesForRobinBoundary(
+    FcpwRobinBoundaryHandler<DIM>& robinBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<DIM>& geometricQueries);
 
-std::function<float(float)> getBranchTraversalWeightCallback(float minRadialDist=1e-2f);
+std::function<float(float)> getBranchTraversalWeightCallback(
+    float minRadialDist = 1e-2f);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Implementation
@@ -150,17 +170,16 @@ std::function<float(float)> getBranchTraversalWeightCallback(float minRadialDist
 template <size_t DIM>
 void loadBoundaryMesh(const std::string& objFile,
                       std::vector<Vector<DIM>>& positions,
-                      std::vector<Vectori<DIM>>& indices)
-{
-    std::cerr << "loadBoundaryMesh: Unsupported dimension: " << DIM << std::endl;
+                      std::vector<Vectori<DIM>>& indices) {
+    std::cerr << "loadBoundaryMesh: Unsupported dimension: " << DIM
+              << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <>
 void loadBoundaryMesh<2>(const std::string& objFile,
                          std::vector<Vector2>& positions,
-                         std::vector<Vector2i>& indices)
-{
+                         std::vector<Vector2i>& indices) {
     // load file
     fcpw::PolygonSoup<2> soup;
     fcpw::loadLineSegmentSoupFromOBJFile(objFile, soup);
@@ -168,11 +187,11 @@ void loadBoundaryMesh<2>(const std::string& objFile,
     // collect mesh positions and indices
     positions = soup.positions;
     indices.clear();
-    int L = (int)soup.indices.size()/2;
+    int L = (int)soup.indices.size() / 2;
 
     for (int l = 0; l < L; l++) {
-        size_t i = soup.indices[2*l + 0];
-        size_t j = soup.indices[2*l + 1];
+        size_t i = soup.indices[2 * l + 0];
+        size_t j = soup.indices[2 * l + 1];
 
         indices.emplace_back(Vector2i(i, j));
     }
@@ -181,8 +200,7 @@ void loadBoundaryMesh<2>(const std::string& objFile,
 template <>
 void loadBoundaryMesh<3>(const std::string& objFile,
                          std::vector<Vector3>& positions,
-                         std::vector<Vector3i>& indices)
-{
+                         std::vector<Vector3i>& indices) {
     // load file
     fcpw::PolygonSoup<3> soup;
     fcpw::loadTriangleSoupFromOBJFile(objFile, soup);
@@ -190,12 +208,12 @@ void loadBoundaryMesh<3>(const std::string& objFile,
     // collect mesh positions and indices
     positions = soup.positions;
     indices.clear();
-    int T = (int)soup.indices.size()/3;
+    int T = (int)soup.indices.size() / 3;
 
     for (int t = 0; t < T; t++) {
-        size_t i = soup.indices[3*t + 0];
-        size_t j = soup.indices[3*t + 1];
-        size_t k = soup.indices[3*t + 2];
+        size_t i = soup.indices[3 * t + 0];
+        size_t j = soup.indices[3 * t + 1];
+        size_t k = soup.indices[3 * t + 2];
 
         indices.emplace_back(Vector3i(i, j, k));
     }
@@ -204,11 +222,11 @@ void loadBoundaryMesh<3>(const std::string& objFile,
 template <size_t DIM>
 void loadTexturedBoundaryMesh(const std::string& objFile,
                               std::vector<Vector<DIM>>& positions,
-                              std::vector<Vector<DIM-1>>& textureCoordinates,
+                              std::vector<Vector<DIM - 1>>& textureCoordinates,
                               std::vector<Vectori<DIM>>& indices,
-                              std::vector<Vectori<DIM>>& textureIndices)
-{
-    std::cerr << "loadTexturedBoundaryMesh: Unsupported dimension: " << DIM << std::endl;
+                              std::vector<Vectori<DIM>>& textureIndices) {
+    std::cerr << "loadTexturedBoundaryMesh: Unsupported dimension: " << DIM
+              << std::endl;
     exit(EXIT_FAILURE);
 }
 
@@ -217,8 +235,7 @@ void loadTexturedBoundaryMesh<3>(const std::string& objFile,
                                  std::vector<Vector3>& positions,
                                  std::vector<Vector2>& textureCoordinates,
                                  std::vector<Vector3i>& indices,
-                                 std::vector<Vector3i>& textureIndices)
-{
+                                 std::vector<Vector3i>& textureIndices) {
     // load file
     fcpw::PolygonSoup<3> soup;
     fcpw::loadTriangleSoupFromOBJFile(objFile, soup);
@@ -228,15 +245,15 @@ void loadTexturedBoundaryMesh<3>(const std::string& objFile,
     textureCoordinates = soup.textureCoordinates;
     indices.clear();
     textureIndices.clear();
-    int T = (int)soup.indices.size()/3;
+    int T = (int)soup.indices.size() / 3;
 
     for (int t = 0; t < T; t++) {
-        size_t i = soup.indices[3*t + 0];
-        size_t j = soup.indices[3*t + 1];
-        size_t k = soup.indices[3*t + 2];
-        size_t ti = soup.tIndices[3*t + 0];
-        size_t tj = soup.tIndices[3*t + 1];
-        size_t tk = soup.tIndices[3*t + 2];
+        size_t i = soup.indices[3 * t + 0];
+        size_t j = soup.indices[3 * t + 1];
+        size_t k = soup.indices[3 * t + 2];
+        size_t ti = soup.tIndices[3 * t + 0];
+        size_t tj = soup.tIndices[3 * t + 1];
+        size_t tk = soup.tIndices[3 * t + 2];
 
         indices.emplace_back(Vector3i(i, j, k));
         textureIndices.emplace_back(Vector3i(ti, tj, tk));
@@ -244,8 +261,7 @@ void loadTexturedBoundaryMesh<3>(const std::string& objFile,
 }
 
 template <size_t DIM>
-void normalize(std::vector<Vector<DIM>>& positions)
-{
+void normalize(std::vector<Vector<DIM>>& positions) {
     int V = (int)positions.size();
     Vector<DIM> cm = Vector<DIM>::Zero();
     for (int i = 0; i < V; i++) {
@@ -265,25 +281,24 @@ void normalize(std::vector<Vector<DIM>>& positions)
 }
 
 template <size_t DIM>
-void applyShift(const Vector<DIM>& shift, std::vector<Vector<DIM>>& positions)
-{
+void applyShift(const Vector<DIM>& shift, std::vector<Vector<DIM>>& positions) {
     for (int i = 0; i < (int)positions.size(); i++) {
         positions[i] += shift;
     }
 }
 
 template <size_t DIM>
-void flipOrientation(std::vector<Vectori<DIM>>& indices)
-{
+void flipOrientation(std::vector<Vectori<DIM>>& indices) {
     for (int i = 0; i < (int)indices.size(); i++) {
         std::swap(indices[i][0], indices[i][1]);
     }
 }
 
 template <size_t DIM>
-std::pair<Vector<DIM>, Vector<DIM>> computeBoundingBox(const std::vector<Vector<DIM>>& positions,
-                                                       bool makeSquare, float scale)
-{
+std::pair<Vector<DIM>, Vector<DIM>> computeBoundingBox(
+    const std::vector<Vector<DIM>>& positions,
+    bool makeSquare,
+    float scale) {
     int nPositions = (int)positions.size();
     Vector<DIM> cm = Vector<DIM>::Zero();
     for (int i = 0; i < nPositions; i++) {
@@ -293,14 +308,14 @@ std::pair<Vector<DIM>, Vector<DIM>> computeBoundingBox(const std::vector<Vector<
     cm /= nPositions;
     fcpw::BoundingBox<DIM> bbox;
     for (int i = 0; i < nPositions; i++) {
-        Vector<DIM> p = (positions[i] - cm)*scale + cm;
+        Vector<DIM> p = (positions[i] - cm) * scale + cm;
         bbox.expandToInclude(p);
     }
 
     if (makeSquare) {
         Vector<DIM> center = bbox.centroid();
         Vector<DIM> extent = bbox.extent();
-        float maxCoeff = 0.5f*extent.maxCoeff();
+        float maxCoeff = 0.5f * extent.maxCoeff();
         bbox.pMin = center - Vector<DIM>::Constant(maxCoeff);
         bbox.pMax = center + Vector<DIM>::Constant(maxCoeff);
     }
@@ -312,8 +327,7 @@ template <size_t DIM>
 void buildBoundingBoxMesh(const Vector<DIM>& boundingBoxMin,
                           const Vector<DIM>& boundingBoxMax,
                           std::vector<Vector<DIM>>& positions,
-                          std::vector<Vectori<DIM>>& indices)
-{
+                          std::vector<Vectori<DIM>>& indices) {
     // do nothing
 }
 
@@ -321,8 +335,7 @@ template <>
 void buildBoundingBoxMesh<2>(const Vector2& boundingBoxMin,
                              const Vector2& boundingBoxMax,
                              std::vector<Vector2>& positions,
-                             std::vector<Vector2i>& indices)
-{
+                             std::vector<Vector2i>& indices) {
     positions.clear();
     positions.emplace_back(boundingBoxMin);
     positions.emplace_back(Vector2(boundingBoxMax(0), boundingBoxMin(1)));
@@ -340,17 +353,22 @@ template <>
 void buildBoundingBoxMesh<3>(const Vector3& boundingBoxMin,
                              const Vector3& boundingBoxMax,
                              std::vector<Vector3>& positions,
-                             std::vector<Vector3i>& indices)
-{
+                             std::vector<Vector3i>& indices) {
     positions.clear();
     positions.emplace_back(boundingBoxMin);
-    positions.emplace_back(Vector3(boundingBoxMax(0), boundingBoxMin(1), boundingBoxMin(2)));
-    positions.emplace_back(Vector3(boundingBoxMax(0), boundingBoxMax(1), boundingBoxMin(2)));
-    positions.emplace_back(Vector3(boundingBoxMin(0), boundingBoxMax(1), boundingBoxMin(2)));
-    positions.emplace_back(Vector3(boundingBoxMin(0), boundingBoxMin(1), boundingBoxMax(2)));
-    positions.emplace_back(Vector3(boundingBoxMax(0), boundingBoxMin(1), boundingBoxMax(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMax(0), boundingBoxMin(1), boundingBoxMin(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMax(0), boundingBoxMax(1), boundingBoxMin(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMin(0), boundingBoxMax(1), boundingBoxMin(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMin(0), boundingBoxMin(1), boundingBoxMax(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMax(0), boundingBoxMin(1), boundingBoxMax(2)));
     positions.emplace_back(boundingBoxMax);
-    positions.emplace_back(Vector3(boundingBoxMin(0), boundingBoxMax(1), boundingBoxMax(2)));
+    positions.emplace_back(
+        Vector3(boundingBoxMin(0), boundingBoxMax(1), boundingBoxMax(2)));
 
     indices.clear();
     indices.emplace_back(Vector3i(0, 2, 1));
@@ -371,12 +389,12 @@ template <size_t DIM>
 void addBoundingBoxToBoundaryMesh(const Vector<DIM>& boundingBoxMin,
                                   const Vector<DIM>& boundingBoxMax,
                                   std::vector<Vector<DIM>>& positions,
-                                  std::vector<Vectori<DIM>>& indices)
-{
+                                  std::vector<Vectori<DIM>>& indices) {
     // build box
     std::vector<Vector<DIM>> boxPositions;
     std::vector<Vectori<DIM>> boxIndices;
-    buildBoundingBoxMesh<DIM>(boundingBoxMin, boundingBoxMax, boxPositions, boxIndices);
+    buildBoundingBoxMesh<DIM>(boundingBoxMin, boundingBoxMax, boxPositions,
+                              boxIndices);
 
     // append box positions and indices
     int V = (int)positions.size();
@@ -397,8 +415,7 @@ void addBoundingBoxToBoundaryMesh(const Vector<DIM>& boundingBoxMin,
 template <size_t DIM>
 Vector<DIM> computePrimitiveMidpoint(const std::vector<Vector<DIM>>& positions,
                                      const std::vector<Vectori<DIM>>& indices,
-                                     size_t primitiveIndex)
-{
+                                     size_t primitiveIndex) {
     Vector<DIM> pMid = Vector<DIM>::Zero();
     for (int j = 0; j < DIM; j++) {
         int vIndex = indices[primitiveIndex][j];
@@ -407,20 +424,21 @@ Vector<DIM> computePrimitiveMidpoint(const std::vector<Vector<DIM>>& positions,
         pMid += p;
     }
 
-    return pMid/DIM;
+    return pMid / DIM;
 }
 
 template <size_t DIM>
-void partitionBoundaryMesh(std::function<bool(const Vector<DIM>&)> onReflectingBoundary,
-                           const std::vector<Vector<DIM>>& positions,
-                           const std::vector<Vectori<DIM>>& indices,
-                           std::vector<Vector<DIM>>& absorbingPositions,
-                           std::vector<Vectori<DIM>>& absorbingIndices,
-                           std::vector<Vector<DIM>>& reflectingPositions,
-                           std::vector<Vectori<DIM>>& reflectingIndices)
-{
+void partitionBoundaryMesh(
+    std::function<bool(const Vector<DIM>&)> onReflectingBoundary,
+    const std::vector<Vector<DIM>>& positions,
+    const std::vector<Vectori<DIM>>& indices,
+    std::vector<Vector<DIM>>& absorbingPositions,
+    std::vector<Vectori<DIM>>& absorbingIndices,
+    std::vector<Vector<DIM>>& reflectingPositions,
+    std::vector<Vectori<DIM>>& reflectingIndices) {
     Vectori<DIM> index = Vectori<DIM>::Constant(-1);
-    std::unordered_map<size_t, size_t> absorbingBoundaryMap, reflectingBoundaryMap;
+    std::unordered_map<size_t, size_t> absorbingBoundaryMap,
+        reflectingBoundaryMap;
     absorbingPositions.clear();
     absorbingIndices.clear();
     reflectingPositions.clear();
@@ -434,7 +452,8 @@ void partitionBoundaryMesh(std::function<bool(const Vector<DIM>&)> onReflectingB
                 int vIndex = indices[i][j];
                 const Vector<DIM>& p = positions[vIndex];
 
-                if (reflectingBoundaryMap.find(vIndex) == reflectingBoundaryMap.end()) {
+                if (reflectingBoundaryMap.find(vIndex) ==
+                    reflectingBoundaryMap.end()) {
                     reflectingBoundaryMap[vIndex] = reflectingPositions.size();
                     reflectingPositions.emplace_back(p);
                 }
@@ -449,7 +468,8 @@ void partitionBoundaryMesh(std::function<bool(const Vector<DIM>&)> onReflectingB
                 int vIndex = indices[i][j];
                 const Vector<DIM>& p = positions[vIndex];
 
-                if (absorbingBoundaryMap.find(vIndex) == absorbingBoundaryMap.end()) {
+                if (absorbingBoundaryMap.find(vIndex) ==
+                    absorbingBoundaryMap.end()) {
                     absorbingBoundaryMap[vIndex] = absorbingPositions.size();
                     absorbingPositions.emplace_back(p);
                 }
@@ -463,79 +483,88 @@ void partitionBoundaryMesh(std::function<bool(const Vector<DIM>&)> onReflectingB
 }
 
 template <size_t DIM>
-FcpwDirichletBoundaryHandler<DIM>::FcpwDirichletBoundaryHandler()
-{
-    std::cerr << "FcpwDirichletBoundaryHandler: Unsupported dimension: " << DIM << std::endl;
+FcpwDirichletBoundaryHandler<DIM>::FcpwDirichletBoundaryHandler() {
+    std::cerr << "FcpwDirichletBoundaryHandler: Unsupported dimension: " << DIM
+              << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <size_t DIM>
-void FcpwDirichletBoundaryHandler<DIM>::buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
-                                                                   const std::vector<Vectori<DIM>>& indices,
-                                                                   bool buildBvh, bool enableBvhVectorization)
-{
-    std::cerr << "FcpwDirichletBoundaryHandler::buildAccelerationStructure: Unsupported dimension: " << DIM << std::endl;
+void FcpwDirichletBoundaryHandler<DIM>::buildAccelerationStructure(
+    const std::vector<Vector<DIM>>& positions,
+    const std::vector<Vectori<DIM>>& indices,
+    bool buildBvh,
+    bool enableBvhVectorization) {
+    std::cerr << "FcpwDirichletBoundaryHandler::buildAccelerationStructure: "
+                 "Unsupported dimension: "
+              << DIM << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <>
 class FcpwDirichletBoundaryHandler<2> {
-public:
+   public:
     // constructor
- FcpwDirichletBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
+#ifdef FCPW_USE_GPU_LUYAN
+    FcpwDirichletBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
+#else
+    FcpwDirichletBoundaryHandler() {}
+#endif
 
- // builds an FCPW acceleration structure (specifically a bounding volume
- // hierarchy) from a set of positions and indices. Uses a simple list of mesh
- // faces for brute-force geometric queries when buildBvh is false.
- void buildAccelerationStructure(const std::vector<Vector2>& positions,
-                                 const std::vector<Vector2i>& indices,
-                                 bool buildBvh = true,
-                                 bool enableBvhVectorization = false) {
-     if (positions.size() > 0) {
-         // load positions and indices
-         scene.setObjectCount(1);
-         scene.setObjectVertices(positions, 0);
-         scene.setObjectLineSegments(indices, 0);
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions and indices. Uses a simple list of
+    // mesh faces for brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(const std::vector<Vector2>& positions,
+                                    const std::vector<Vector2i>& indices,
+                                    bool buildBvh = true,
+                                    bool enableBvhVectorization = false) {
+        if (positions.size() > 0) {
+            // load positions and indices
+            scene.setObjectCount(1);
+            scene.setObjectVertices(positions, 0);
+            scene.setObjectLineSegments(indices, 0);
 
-         // build aggregate
-         fcpw::AggregateType aggregateType =
-             buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
-                      : fcpw::AggregateType::Baseline;
-         std::cout << "2-dirichlet" << std::endl;
-        #ifdef FCPW_USE_GPU_LUYAN
+            // build aggregate
+            fcpw::AggregateType aggregateType =
+                buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                         : fcpw::AggregateType::Baseline;
+            std::cout << "2-dirichlet" << std::endl;
+#ifdef FCPW_USE_GPU_LUYAN
             scene.build(aggregateType, false, true, true);
             gpuScene.transferToGPU(scene);
             std::cout << "finish transfer to gpu" << std::endl;
-        #else
+#else
             scene.build(aggregateType, enableBvhVectorization, true, true);
-        #endif
+#endif
         }
     }
-    auto& get_scene(){
-        return scene;
-    }
-    auto& get_gpu_scene(){
-        return gpuScene;
-    }
+    auto& get_scene() { return scene; }
 
-//    private:
+    //    private:
     // member
     fcpw::Scene<2> scene;
+#ifdef FCPW_USE_GPU_LUYAN
     fcpw::GPUScene<2> gpuScene;
+#endif
 };
 
 template <>
 class FcpwDirichletBoundaryHandler<3> {
-public:
-    // constructor
-    FcpwDirichletBoundaryHandler():gpuScene("../deps/fcpw/", false) {}
+   public:
+// constructor
+#ifdef FCPW_USE_GPU_LUYAN
+    FcpwDirichletBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
+#else
+    FcpwDirichletBoundaryHandler() = default;
+#endif
 
     // builds an FCPW acceleration structure (specifically a bounding volume
     // hierarchy) from a set of positions and indices. Uses a simple list of
     // mesh faces for brute-force geometric queries when buildBvh is false.
     void buildAccelerationStructure(const std::vector<Vector3>& positions,
                                     const std::vector<Vector3i>& indices,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
+                                    bool buildBvh = true,
+                                    bool enableBvhVectorization = false) {
         if (positions.size() > 0) {
             // load positions and indices
             scene.setObjectCount(1);
@@ -543,108 +572,112 @@ public:
             scene.setObjectTriangles(indices, 0);
 
             // build aggregate
-            fcpw::AggregateType aggregateType = buildBvh ?
-                                                fcpw::AggregateType::Bvh_SurfaceArea :
-                                                fcpw::AggregateType::Baseline;
-            #ifdef FCPW_USE_GPU_LUYAN
-                        scene.build(aggregateType, false, true, true);
-                        gpuScene.transferToGPU(scene);
-            #else
-                        scene.build(aggregateType, enableBvhVectorization, true, true);
-            #endif
+            fcpw::AggregateType aggregateType =
+                buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                         : fcpw::AggregateType::Baseline;
+#ifdef FCPW_USE_GPU_LUYAN
+            scene.build(aggregateType, false, true, true);
+            gpuScene.transferToGPU(scene);
+#else
+            scene.build(aggregateType, enableBvhVectorization, true, true);
+#endif
         }
     }
-    auto& get_scene(){
-        return scene;
-    }
-    auto& get_gpu_scene(){
-        return gpuScene;
-    }
-// private:
+    auto& get_scene() { return scene; }
+    // private:
     // member
     fcpw::Scene<3> scene;
+#ifdef FCPW_USE_GPU_LUYAN
     fcpw::GPUScene<3> gpuScene;
+#endif
 };
 
 template <size_t DIM>
-FcpwNeumannBoundaryHandler<DIM>::FcpwNeumannBoundaryHandler()
-{
-    std::cerr << "FcpwNeumannBoundaryHandler: Unsupported dimension: " << DIM << std::endl;
+FcpwNeumannBoundaryHandler<DIM>::FcpwNeumannBoundaryHandler() {
+    std::cerr << "FcpwNeumannBoundaryHandler: Unsupported dimension: " << DIM
+              << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <size_t DIM>
-void FcpwNeumannBoundaryHandler<DIM>::buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
-                                                                 const std::vector<Vectori<DIM>>& indices,
-                                                                 std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                                                 bool buildBvh, bool enableBvhVectorization)
-{
-    std::cerr << "FcpwNeumannBoundaryHandler::buildAccelerationStructure: Unsupported dimension: " << DIM << std::endl;
+void FcpwNeumannBoundaryHandler<DIM>::buildAccelerationStructure(
+    const std::vector<Vector<DIM>>& positions,
+    const std::vector<Vectori<DIM>>& indices,
+    std::function<bool(float, int)> ignoreCandidateSilhouette,
+    bool buildBvh,
+    bool enableBvhVectorization) {
+    std::cerr << "FcpwNeumannBoundaryHandler::buildAccelerationStructure: "
+                 "Unsupported dimension: "
+              << DIM << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <>
 class FcpwNeumannBoundaryHandler<2> {
-public:
-    // constructor
- FcpwNeumannBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
+   public:
+// constructor
+#ifdef FCPW_USE_GPU_LUYAN
+    FcpwNeumannBoundaryHandler() : gpuScene("../deps/fcpw/", false) {}
+#else
+    FcpwNeumannBoundaryHandler() {}
+#endif
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions and indices. Uses a simple list of
+    // mesh faces for brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(
+        const std::vector<Vector2>& positions,
+        const std::vector<Vector2i>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false) {
+        if (positions.size() > 0) {
+            // load positions and indices
+            scene.setObjectCount(1);
+            scene.setObjectVertices(positions, 0);
+            scene.setObjectLineSegments(indices, 0);
 
- // builds an FCPW acceleration structure (specifically a bounding volume
- // hierarchy) from a set of positions and indices. Uses a simple list of
- // mesh faces for brute-force geometric queries when buildBvh is false.
- void buildAccelerationStructure(
-     const std::vector<Vector2>& positions,
-     const std::vector<Vector2i>& indices,
-     std::function<bool(float, int)> ignoreCandidateSilhouette,
-     bool buildBvh = true,
-     bool enableBvhVectorization = false) {
-     if (positions.size() > 0) {
-         // load positions and indices
-         scene.setObjectCount(1);
-         scene.setObjectVertices(positions, 0);
-         scene.setObjectLineSegments(indices, 0);
+            // compute silhouettes
+            scene.computeSilhouettes(ignoreCandidateSilhouette);
 
-         // compute silhouettes
-         scene.computeSilhouettes(ignoreCandidateSilhouette);
-
-         // build aggregate
-         fcpw::AggregateType aggregateType =
-             buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
-                      : fcpw::AggregateType::Baseline;
-        #ifdef FCPW_USE_GPU_LUYAN
-                scene.build(aggregateType, false, true, true);
-                gpuScene.transferToGPU(scene);
-        #else
-                scene.build(aggregateType, enableBvhVectorization, true, true);
-        #endif
-     }
- }
-    auto& get_scene(){
-        return scene;
+            // build aggregate
+            fcpw::AggregateType aggregateType =
+                buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
+                         : fcpw::AggregateType::Baseline;
+#ifdef FCPW_USE_GPU_LUYAN
+            scene.build(aggregateType, false, true, true);
+            gpuScene.transferToGPU(scene);
+#else
+            scene.build(aggregateType, enableBvhVectorization, true, true);
+#endif
+        }
     }
-    auto& get_gpu_scene(){
-        return gpuScene;
-    }
+    auto& get_scene() { return scene; }
 
-// private:
- // member
- fcpw::Scene<2> scene;
- fcpw::GPUScene<2> gpuScene;
+    // private:
+    // member
+    fcpw::Scene<2> scene;
+#ifdef FCPW_USE_GPU_LUYAN
+    fcpw::GPUScene<2> gpuScene;
+#endif
 };
 
 template <>
 class FcpwNeumannBoundaryHandler<3> {
-public:
+   public:
     // constructor
- FcpwNeumannBoundaryHandler()
-     : gpuScene("../deps/fcpw/", false) {}
+#ifdef FCPW_USE_GPU_LUYAN
+    FcpwNeumannBoundaryHandler(const std::string& path = "../deps/fcpw/")
+        : gpuScene(path, false) {}
+#else
+    FcpwNeumannBoundaryHandler() = default;
+#endif
 
- void buildAccelerationStructure(
-     const std::vector<Vector3>& positions,
-     const std::vector<Vector3i>& indices,
-     std::function<bool(float, int)> ignoreCandidateSilhouette,
-     bool buildBvh = true,
-     bool enableBvhVectorization = false) {
+    void buildAccelerationStructure(
+        const std::vector<Vector3>& positions,
+        const std::vector<Vector3i>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false) {
         if (positions.size() > 0) {
             // load positions and indices
             scene.setObjectCount(1);
@@ -657,57 +690,58 @@ public:
             // build aggregate
             fcpw::AggregateType aggregateType =
                 buildBvh ? fcpw::AggregateType::Bvh_SurfaceArea
-                        : fcpw::AggregateType::Baseline;
-            #ifdef FCPW_USE_GPU_LUYAN
-                scene.build(aggregateType, false, true, true);
-                gpuScene.transferToGPU(scene);
-            #else
-                scene.build(aggregateType, enableBvhVectorization, true, true);
-            #endif
+                         : fcpw::AggregateType::Baseline;
+#ifdef FCPW_USE_GPU_LUYAN
+            scene.build(aggregateType, false, true, true);
+            gpuScene.transferToGPU(scene);
+#else
+            scene.build(aggregateType, enableBvhVectorization, true, true);
+#endif
         }
     }
-    auto& get_scene(){
-        return scene;
-    }
-    auto& get_gpu_scene(){
-        return gpuScene;
-    }
-
+    auto& get_scene() { return scene; }
     // member
     fcpw::Scene<3> scene;
+#ifdef FCPW_USE_GPU_LUYAN
     fcpw::GPUScene<3> gpuScene;
+#endif
 };
 
 template <size_t DIM>
-FcpwRobinBoundaryHandler<DIM>::FcpwRobinBoundaryHandler()
-{
-    std::cerr << "FcpwRobinBoundaryHandler: Unsupported dimension: " << DIM << std::endl;
+FcpwRobinBoundaryHandler<DIM>::FcpwRobinBoundaryHandler() {
+    std::cerr << "FcpwRobinBoundaryHandler: Unsupported dimension: " << DIM
+              << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <size_t DIM>
-void FcpwRobinBoundaryHandler<DIM>::buildAccelerationStructure(const std::vector<Vector<DIM>>& positions,
-                                                               const std::vector<Vectori<DIM>>& indices,
-                                                               std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                                               const std::vector<float>& minRobinCoeffValues,
-                                                               const std::vector<float>& maxRobinCoeffValues,
-                                                               bool buildBvh, bool enableBvhVectorization)
-{
-    std::cerr << "FcpwRobinBoundaryHandler::buildAccelerationStructure: Unsupported dimension: " << DIM << std::endl;
+void FcpwRobinBoundaryHandler<DIM>::buildAccelerationStructure(
+    const std::vector<Vector<DIM>>& positions,
+    const std::vector<Vectori<DIM>>& indices,
+    std::function<bool(float, int)> ignoreCandidateSilhouette,
+    const std::vector<float>& minRobinCoeffValues,
+    const std::vector<float>& maxRobinCoeffValues,
+    bool buildBvh,
+    bool enableBvhVectorization) {
+    std::cerr << "FcpwRobinBoundaryHandler::buildAccelerationStructure: "
+                 "Unsupported dimension: "
+              << DIM << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <size_t DIM>
-void FcpwRobinBoundaryHandler<DIM>::updateCoefficientValues(const std::vector<float>& minRobinCoeffValues,
-                                                            const std::vector<float>& maxRobinCoeffValues)
-{
-    std::cerr << "FcpwRobinBoundaryHandler::updateCoefficientValues: Unsupported dimension: " << DIM << std::endl;
+void FcpwRobinBoundaryHandler<DIM>::updateCoefficientValues(
+    const std::vector<float>& minRobinCoeffValues,
+    const std::vector<float>& maxRobinCoeffValues) {
+    std::cerr << "FcpwRobinBoundaryHandler::updateCoefficientValues: "
+                 "Unsupported dimension: "
+              << DIM << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <>
 class FcpwRobinBoundaryHandler<2> {
-public:
+   public:
     // constructor
     FcpwRobinBoundaryHandler() {
         baseline = nullptr;
@@ -717,38 +751,46 @@ public:
 #endif
     }
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions, indices, and min and max absolute coefficient values per mesh face.
-    // Uses a simple list of mesh faces for brute-force geometric queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector2>& positions,
-                                    const std::vector<Vector2i>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    const std::vector<float>& minRobinCoeffValues,
-                                    const std::vector<float>& maxRobinCoeffValues,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions, indices, and min and max absolute
+    // coefficient values per mesh face. Uses a simple list of mesh faces for
+    // brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(
+        const std::vector<Vector2>& positions,
+        const std::vector<Vector2i>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        const std::vector<float>& minRobinCoeffValues,
+        const std::vector<float>& maxRobinCoeffValues,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false) {
         if (positions.size() > 0) {
             struct VertexFaceAdjacency {
-                VertexFaceAdjacency(): adjacentFaceIndices{-1, -1} {}
+                VertexFaceAdjacency() : adjacentFaceIndices{-1, -1} {}
                 int adjacentFaceIndices[2];
             };
 
             // set the vertex and line segment count
             int V = (int)positions.size();
             int L = (int)indices.size();
-            if (minRobinCoeffValues.size() != L || maxRobinCoeffValues.size() != L) {
-                std::cerr << "FcpwRobinBoundaryHandler<2>::buildAccelerationStructure: invalid Robin coefficient sizes!" << std::endl;
+            if (minRobinCoeffValues.size() != L ||
+                maxRobinCoeffValues.size() != L) {
+                std::cerr << "FcpwRobinBoundaryHandler<2>::"
+                             "buildAccelerationStructure: invalid Robin "
+                             "coefficient sizes!"
+                          << std::endl;
                 exit(EXIT_FAILURE);
             }
 
             std::vector<VertexFaceAdjacency> vertexTable(V);
             soup.positions = positions;
-            soup.indices.resize(2*L);
+            soup.indices.resize(2 * L);
             lineSegments.resize(L);
             lineSegmentPtrs.resize(L, nullptr);
 
             // update soup and line segment indices
             for (int i = 0; i < L; i++) {
-                ReflectanceLineSegment<PrimitiveBound>& lineSegment = lineSegments[i];
+                ReflectanceLineSegment<PrimitiveBound>& lineSegment =
+                    lineSegments[i];
                 lineSegmentPtrs[i] = &lineSegment;
                 lineSegment.soup = &soup;
                 lineSegment.setIndex(i);
@@ -760,14 +802,15 @@ public:
                     VertexFaceAdjacency& v = vertexTable[vIndex];
                     v.adjacentFaceIndices[1 - j] = i;
 
-                    soup.indices[2*i + j] = vIndex;
+                    soup.indices[2 * i + j] = vIndex;
                     lineSegment.indices[j] = vIndex;
                 }
             }
 
             // compute adjacent normals for line segment primitives
             for (int i = 0; i < L; i++) {
-                ReflectanceLineSegment<PrimitiveBound>& lineSegment = lineSegments[i];
+                ReflectanceLineSegment<PrimitiveBound>& lineSegment =
+                    lineSegments[i];
                 Vector2 n0 = lineSegment.normal(true);
 
                 for (int j = 0; j < 2; j++) {
@@ -777,18 +820,22 @@ public:
 
                     if (adjacentFaceIndex != -1) {
                         lineSegment.hasAdjacentFace[j] = true;
-                        lineSegment.n[j] = lineSegments[adjacentFaceIndex].normal(true);
+                        lineSegment.n[j] =
+                            lineSegments[adjacentFaceIndex].normal(true);
 
                     } else {
                         lineSegment.hasAdjacentFace[j] = false;
                     }
 
-                    if (ignoreCandidateSilhouette && lineSegment.hasAdjacentFace[j]) {
+                    if (ignoreCandidateSilhouette &&
+                        lineSegment.hasAdjacentFace[j]) {
                         const Vector2& nj = lineSegment.n[j];
-                        float det = n0[0]*nj[1] - n0[1]*nj[0];
+                        float det = n0[0] * nj[1] - n0[1] * nj[0];
                         float sign = j == 0 ? 1.0f : -1.0f;
 
-                        lineSegment.ignoreAdjacentFace[j] = ignoreCandidateSilhouette(det*sign, lineSegment.getIndex());
+                        lineSegment.ignoreAdjacentFace[j] =
+                            ignoreCandidateSilhouette(det * sign,
+                                                      lineSegment.getIndex());
 
                     } else {
                         lineSegment.ignoreAdjacentFace[j] = false;
@@ -800,59 +847,81 @@ public:
             if (buildBvh) {
                 if (enableBvhVectorization) {
 #ifdef FCPW_USE_ENOKI
-                    bvh = createReflectanceBvh<2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(soup, lineSegmentPtrs, silhouettePtrsStub,
-                                                                                                     true, true, FCPW_SIMD_WIDTH);
-                    mbvh = createVectorizedReflectanceBvh<2, ReflectanceLineSegment<PrimitiveBound>, WideNodeBound, NodeBound>(
-                                                                                                     bvh.get(), lineSegmentPtrs,
-                                                                                                     silhouettePtrsStub, true);
+                    bvh = createReflectanceBvh<
+                        2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(
+                        soup, lineSegmentPtrs, silhouettePtrsStub, true, true,
+                        FCPW_SIMD_WIDTH);
+                    mbvh = createVectorizedReflectanceBvh<
+                        2, ReflectanceLineSegment<PrimitiveBound>,
+                        WideNodeBound, NodeBound>(bvh.get(), lineSegmentPtrs,
+                                                  silhouettePtrsStub, true);
 #else
-                    bvh = createReflectanceBvh<2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(soup, lineSegmentPtrs, silhouettePtrsStub);
+                    bvh = createReflectanceBvh<
+                        2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(
+                        soup, lineSegmentPtrs, silhouettePtrsStub);
 #endif
                 } else {
-                    bvh = createReflectanceBvh<2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(soup, lineSegmentPtrs, silhouettePtrsStub);
+                    bvh = createReflectanceBvh<
+                        2, ReflectanceLineSegment<PrimitiveBound>, NodeBound>(
+                        soup, lineSegmentPtrs, silhouettePtrsStub);
                 }
 
             } else {
-                baseline = createReflectanceBaseline<2, ReflectanceLineSegment<PrimitiveBound>>(lineSegmentPtrs, silhouettePtrsStub);
+                baseline = createReflectanceBaseline<
+                    2, ReflectanceLineSegment<PrimitiveBound>>(
+                    lineSegmentPtrs, silhouettePtrsStub);
             }
         }
     }
 
     // updates the Robin coefficients on the boundary mesh
-    void updateCoefficientValues(const std::vector<float>& minRobinCoeffValues,
-                                 const std::vector<float>& maxRobinCoeffValues) {
+    void updateCoefficientValues(
+        const std::vector<float>& minRobinCoeffValues,
+        const std::vector<float>& maxRobinCoeffValues) {
         if (baseline) {
-            baseline->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            baseline->updateCoefficientValues(minRobinCoeffValues,
+                                              maxRobinCoeffValues);
 
 #ifdef FCPW_USE_ENOKI
         } else if (mbvh) {
-            mbvh->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            mbvh->updateCoefficientValues(minRobinCoeffValues,
+                                          maxRobinCoeffValues);
 #endif
         } else if (bvh) {
-            bvh->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            bvh->updateCoefficientValues(minRobinCoeffValues,
+                                         maxRobinCoeffValues);
         }
     }
 
     // members
     typedef RobinLineSegmentBound PrimitiveBound;
     typedef RobinBvhNodeBound<2> NodeBound;
-    std::unique_ptr<ReflectanceBaseline<2, ReflectanceLineSegment<PrimitiveBound>>> baseline;
-    std::unique_ptr<ReflectanceBvh<2, ReflectanceBvhNode<2>, ReflectanceLineSegment<PrimitiveBound>, NodeBound>> bvh;
+    std::unique_ptr<
+        ReflectanceBaseline<2, ReflectanceLineSegment<PrimitiveBound>>>
+        baseline;
+    std::unique_ptr<ReflectanceBvh<2,
+                                   ReflectanceBvhNode<2>,
+                                   ReflectanceLineSegment<PrimitiveBound>,
+                                   NodeBound>>
+        bvh;
 #ifdef FCPW_USE_ENOKI
     typedef RobinMbvhNodeBound<2> WideNodeBound;
-    std::unique_ptr<ReflectanceMbvh<FCPW_SIMD_WIDTH, 2,
+    std::unique_ptr<ReflectanceMbvh<FCPW_SIMD_WIDTH,
+                                    2,
                                     ReflectanceLineSegment<PrimitiveBound>,
-                                    ReflectanceMbvhNode<2>, WideNodeBound>> mbvh;
+                                    ReflectanceMbvhNode<2>,
+                                    WideNodeBound>>
+        mbvh;
 #endif
     PolygonSoup<2> soup;
     std::vector<ReflectanceLineSegment<PrimitiveBound>> lineSegments;
-    std::vector<ReflectanceLineSegment<PrimitiveBound> *> lineSegmentPtrs;
-    std::vector<fcpw::SilhouettePrimitive<2> *> silhouettePtrsStub;
+    std::vector<ReflectanceLineSegment<PrimitiveBound>*> lineSegmentPtrs;
+    std::vector<fcpw::SilhouettePrimitive<2>*> silhouettePtrsStub;
 };
 
 template <>
 class FcpwRobinBoundaryHandler<3> {
-public:
+   public:
     // constructor
     FcpwRobinBoundaryHandler() {
         baseline = nullptr;
@@ -862,32 +931,39 @@ public:
 #endif
     }
 
-    // builds an FCPW acceleration structure (specifically a bounding volume hierarchy) from
-    // a set of positions, indices, and min and max absolute coefficient values per mesh face.
-    // Uses a simple list of mesh faces for brute-force geometric queries when buildBvh is false.
-    void buildAccelerationStructure(const std::vector<Vector3>& positions,
-                                    const std::vector<Vector3i>& indices,
-                                    std::function<bool(float, int)> ignoreCandidateSilhouette,
-                                    const std::vector<float>& minRobinCoeffValues,
-                                    const std::vector<float>& maxRobinCoeffValues,
-                                    bool buildBvh=true, bool enableBvhVectorization=false) {
+    // builds an FCPW acceleration structure (specifically a bounding volume
+    // hierarchy) from a set of positions, indices, and min and max absolute
+    // coefficient values per mesh face. Uses a simple list of mesh faces for
+    // brute-force geometric queries when buildBvh is false.
+    void buildAccelerationStructure(
+        const std::vector<Vector3>& positions,
+        const std::vector<Vector3i>& indices,
+        std::function<bool(float, int)> ignoreCandidateSilhouette,
+        const std::vector<float>& minRobinCoeffValues,
+        const std::vector<float>& maxRobinCoeffValues,
+        bool buildBvh = true,
+        bool enableBvhVectorization = false) {
         if (positions.size() > 0) {
             struct EdgeFaceAdjacency {
-                EdgeFaceAdjacency(): adjacentFaceIndices{-1, -1} {}
+                EdgeFaceAdjacency() : adjacentFaceIndices{-1, -1} {}
                 int adjacentFaceIndices[2];
             };
 
             // set the vertex and triangle count
             int V = (int)positions.size();
             int T = (int)indices.size();
-            if (minRobinCoeffValues.size() != T || maxRobinCoeffValues.size() != T) {
-                std::cerr << "FcpwRobinBoundaryHandler<3>::buildAccelerationStructure: invalid Robin coefficient sizes!" << std::endl;
+            if (minRobinCoeffValues.size() != T ||
+                maxRobinCoeffValues.size() != T) {
+                std::cerr << "FcpwRobinBoundaryHandler<3>::"
+                             "buildAccelerationStructure: invalid Robin "
+                             "coefficient sizes!"
+                          << std::endl;
                 exit(EXIT_FAILURE);
             }
 
             std::map<std::pair<int, int>, EdgeFaceAdjacency> edgeTable;
             soup.positions = positions;
-            soup.indices.resize(3*T);
+            soup.indices.resize(3 * T);
             triangles.resize(T);
             trianglePtrs.resize(T, nullptr);
 
@@ -901,7 +977,7 @@ public:
                 triangle.maxCoefficientValue = maxRobinCoeffValues[i];
 
                 for (int j = 0; j < 3; j++) {
-                    int k = (j + 1)%3;
+                    int k = (j + 1) % 3;
                     int I = (int)indices[i][j];
                     int J = (int)indices[i][k];
                     bool performedSwap = false;
@@ -921,7 +997,7 @@ public:
                         e.adjacentFaceIndices[performedSwap ? 1 : 0] = i;
                     }
 
-                    soup.indices[3*i + j] = (int)indices[i][j];
+                    soup.indices[3 * i + j] = (int)indices[i][j];
                     triangle.indices[j] = (int)indices[i][j];
                 }
             }
@@ -932,7 +1008,7 @@ public:
                 Vector3 n0 = triangle.normal(true);
 
                 for (int j = 0; j < 3; j++) {
-                    int k = (j + 1)%3;
+                    int k = (j + 1) % 3;
                     int I = (int)indices[i][j];
                     int J = (int)indices[i][k];
                     bool performedSwap = false;
@@ -943,24 +1019,30 @@ public:
 
                     std::pair<int, int> vIndices(I, J);
                     const EdgeFaceAdjacency& e = edgeTable[vIndices];
-                    int adjacentFaceIndex = e.adjacentFaceIndices[performedSwap ? 0 : 1];
+                    int adjacentFaceIndex =
+                        e.adjacentFaceIndices[performedSwap ? 0 : 1];
 
                     if (adjacentFaceIndex != -1) {
                         triangle.hasAdjacentFace[j] = true;
-                        triangle.n[j] = triangles[adjacentFaceIndex].normal(true);
+                        triangle.n[j] =
+                            triangles[adjacentFaceIndex].normal(true);
 
                     } else {
                         triangle.hasAdjacentFace[j] = false;
                     }
 
-                    if (ignoreCandidateSilhouette && triangle.hasAdjacentFace[j]) {
+                    if (ignoreCandidateSilhouette &&
+                        triangle.hasAdjacentFace[j]) {
                         const Vector3& pa = soup.positions[indices[i][j]];
                         const Vector3& pb = soup.positions[indices[i][k]];
                         const Vector3& nj = triangle.n[j];
                         Vector3 edgeDir = (pb - pa).normalized();
 
-                        float dihedralAngle = std::atan2(edgeDir.dot(nj.cross(n0)), n0.dot(nj));
-                        triangle.ignoreAdjacentFace[j] = ignoreCandidateSilhouette(dihedralAngle, triangle.getIndex());
+                        float dihedralAngle =
+                            std::atan2(edgeDir.dot(nj.cross(n0)), n0.dot(nj));
+                        triangle.ignoreAdjacentFace[j] =
+                            ignoreCandidateSilhouette(dihedralAngle,
+                                                      triangle.getIndex());
 
                     } else {
                         triangle.ignoreAdjacentFace[j] = false;
@@ -972,84 +1054,114 @@ public:
             if (buildBvh) {
                 if (enableBvhVectorization) {
 #ifdef FCPW_USE_ENOKI
-                    bvh = createReflectanceBvh<3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(soup, trianglePtrs, silhouettePtrsStub,
-                                                                                                  true, true, FCPW_SIMD_WIDTH);
-                    mbvh = createVectorizedReflectanceBvh<3, ReflectanceTriangle<PrimitiveBound>, WideNodeBound, NodeBound>(
-                                                                                                  bvh.get(), trianglePtrs,
-                                                                                                  silhouettePtrsStub, true);
+                    bvh = createReflectanceBvh<
+                        3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(
+                        soup, trianglePtrs, silhouettePtrsStub, true, true,
+                        FCPW_SIMD_WIDTH);
+                    mbvh = createVectorizedReflectanceBvh<
+                        3, ReflectanceTriangle<PrimitiveBound>, WideNodeBound,
+                        NodeBound>(bvh.get(), trianglePtrs, silhouettePtrsStub,
+                                   true);
 #else
-                    bvh = createReflectanceBvh<3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(soup, trianglePtrs, silhouettePtrsStub);
+                    bvh = createReflectanceBvh<
+                        3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(
+                        soup, trianglePtrs, silhouettePtrsStub);
 #endif
                 } else {
-                    bvh = createReflectanceBvh<3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(soup, trianglePtrs, silhouettePtrsStub);
+                    bvh = createReflectanceBvh<
+                        3, ReflectanceTriangle<PrimitiveBound>, NodeBound>(
+                        soup, trianglePtrs, silhouettePtrsStub);
                 }
 
             } else {
-                baseline = createReflectanceBaseline<3, ReflectanceTriangle<PrimitiveBound>>(trianglePtrs, silhouettePtrsStub);
+                baseline = createReflectanceBaseline<
+                    3, ReflectanceTriangle<PrimitiveBound>>(trianglePtrs,
+                                                            silhouettePtrsStub);
             }
         }
     }
 
     // updates the Robin coefficients on the boundary mesh
-    void updateCoefficientValues(const std::vector<float>& minRobinCoeffValues,
-                                 const std::vector<float>& maxRobinCoeffValues) {
+    void updateCoefficientValues(
+        const std::vector<float>& minRobinCoeffValues,
+        const std::vector<float>& maxRobinCoeffValues) {
         if (baseline) {
-            baseline->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            baseline->updateCoefficientValues(minRobinCoeffValues,
+                                              maxRobinCoeffValues);
 
 #ifdef FCPW_USE_ENOKI
         } else if (mbvh) {
-            mbvh->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            mbvh->updateCoefficientValues(minRobinCoeffValues,
+                                          maxRobinCoeffValues);
 #endif
         } else if (bvh) {
-            bvh->updateCoefficientValues(minRobinCoeffValues, maxRobinCoeffValues);
+            bvh->updateCoefficientValues(minRobinCoeffValues,
+                                         maxRobinCoeffValues);
         }
     }
 
     // members
     typedef RobinTriangleBound PrimitiveBound;
     typedef RobinBvhNodeBound<3> NodeBound;
-    std::unique_ptr<ReflectanceBaseline<3, ReflectanceTriangle<PrimitiveBound>>> baseline;
-    std::unique_ptr<ReflectanceBvh<3, ReflectanceBvhNode<3>, ReflectanceTriangle<PrimitiveBound>, NodeBound>> bvh;
+    std::unique_ptr<ReflectanceBaseline<3, ReflectanceTriangle<PrimitiveBound>>>
+        baseline;
+    std::unique_ptr<ReflectanceBvh<3,
+                                   ReflectanceBvhNode<3>,
+                                   ReflectanceTriangle<PrimitiveBound>,
+                                   NodeBound>>
+        bvh;
 #ifdef FCPW_USE_ENOKI
     typedef RobinMbvhNodeBound<3> WideNodeBound;
-    std::unique_ptr<ReflectanceMbvh<FCPW_SIMD_WIDTH, 3,
+    std::unique_ptr<ReflectanceMbvh<FCPW_SIMD_WIDTH,
+                                    3,
                                     ReflectanceTriangle<PrimitiveBound>,
-                                    ReflectanceMbvhNode<3>, WideNodeBound>> mbvh;
+                                    ReflectanceMbvhNode<3>,
+                                    WideNodeBound>>
+        mbvh;
 #endif
     PolygonSoup<3> soup;
     std::vector<ReflectanceTriangle<PrimitiveBound>> triangles;
-    std::vector<ReflectanceTriangle<PrimitiveBound> *> trianglePtrs;
-    std::vector<fcpw::SilhouettePrimitive<3> *> silhouettePtrsStub;
+    std::vector<ReflectanceTriangle<PrimitiveBound>*> trianglePtrs;
+    std::vector<fcpw::SilhouettePrimitive<3>*> silhouettePtrsStub;
 };
 
-std::function<bool(float, int)> getIgnoreCandidateSilhouetteCallback(bool solveDoubleSided,
-                                                                     float silhouettePrecision) {
-    return [solveDoubleSided, silhouettePrecision](float dihedralAngle, int index) -> bool {
-        // ignore convex vertices/edges for closest silhouette point tests when solving an interior problem;
-        // NOTE: for complex scenes with both open and closed meshes, the primitive index argument
-        // (of an adjacent line segment/triangle in the scene) can be used to determine whether a
+std::function<bool(float, int)> getIgnoreCandidateSilhouetteCallback(
+    bool solveDoubleSided,
+    float silhouettePrecision) {
+    return [solveDoubleSided, silhouettePrecision](float dihedralAngle,
+                                                   int index) -> bool {
+        // ignore convex vertices/edges for closest silhouette point tests when
+        // solving an interior problem; NOTE: for complex scenes with both open
+        // and closed meshes, the primitive index argument (of an adjacent line
+        // segment/triangle in the scene) can be used to determine whether a
         // vertex/edge should be ignored as a candidate for silhouette tests.
         return solveDoubleSided ? false : dihedralAngle < silhouettePrecision;
     };
 }
 
 template <size_t DIM>
-void populateSdfGrid(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
-                     SdfGrid<DIM>& sdfGrid, const Vectori<DIM>& gridShape,
-                     bool computeUnsignedDistance)
-{
-    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+void populateSdfGrid(
+    FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
+    SdfGrid<DIM>& sdfGrid,
+    const Vectori<DIM>& gridShape,
+    bool computeUnsignedDistance) {
+    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate =
+    // dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
     fcpw::Aggregate<DIM>* absorbingBoundaryAggregate =
         dirichletBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     if (absorbingBoundaryAggregate) {
-        std::function<Array<float, 1>(const Vector<DIM>&)> sdfDataCallback = [absorbingBoundaryAggregate, computeUnsignedDistance](
-                                                                             const Vector<DIM>& x) -> Array<float, 1> {
+        std::function<Array<float, 1>(const Vector<DIM>&)> sdfDataCallback =
+            [absorbingBoundaryAggregate,
+             computeUnsignedDistance](const Vector<DIM>& x) -> Array<float, 1> {
             Vector<DIM> queryPt = x;
             fcpw::Interaction<DIM> interaction;
             fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            absorbingBoundaryAggregate->findClosestPoint(sphere, interaction, !computeUnsignedDistance);
+            absorbingBoundaryAggregate->findClosestPoint(
+                sphere, interaction, !computeUnsignedDistance);
 
-            float distance = computeUnsignedDistance ? interaction.d : interaction.signedDistance(queryPt);
+            float distance = computeUnsignedDistance
+                                 ? interaction.d
+                                 : interaction.signedDistance(queryPt);
             return Array<float, 1>(distance);
         };
 
@@ -1058,82 +1170,95 @@ void populateSdfGrid(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler
 }
 
 template <size_t DIM>
-void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
-                                                  GeometricQueries<DIM>& geometricQueries)
-{
-    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
-    fcpw::Aggregate<DIM> *absorbingBoundaryAggregate = dirichletBoundaryHandler.get_scene().getSceneData()->aggregate.get();
+void populateGeometricQueriesForDirichletBoundary(
+    FcpwDirichletBoundaryHandler<DIM>& dirichletBoundaryHandler,
+    GeometricQueries<DIM>& geometricQueries) {
+    // fcpw::Aggregate<DIM> *absorbingBoundaryAggregate =
+    // dirichletBoundaryHandler.scene.getSceneData()->aggregate.get();
+    fcpw::Aggregate<DIM>* absorbingBoundaryAggregate =
+        dirichletBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     if (absorbingBoundaryAggregate) {
         geometricQueries.hasNonEmptyAbsorbingBoundary = true;
-        #ifdef FCPW_USE_GPU_LUYAN
-        // fcpw::GPUScene<DIM> gpuScene = dirichletBoundaryHandler.get_gpu_scene();
-        // fcpw::GPUScene<DIM> gpuScene("../deps/fcpw/", false);
-        // gpuScene.transferToGPU(dirichletBoundaryHandler.scene);
-        // auto gpuScene = dirichletBoundaryHandler.gpuScene;
-        // std::cout << "finish local transfer" << std::endl;
+#ifdef FCPW_USE_GPU_LUYAN
+        std::cout << "use gpu" << std::endl;
         geometricQueries.computeDistToAbsorbingBoundary =
-            [&dirichletBoundaryHandler](const Vector<DIM>& x,//[&gpuScene]
-                        bool computeSignedDistance) -> float {
+            [&dirichletBoundaryHandler](const Vector<DIM>& x,  //[&gpuScene]
+                                        bool computeSignedDistance) -> float {
             // std::cout << "start to run query" << std::endl;
             Vector<DIM> queryPt = x;
-            float3 queryPt3D = float3{queryPt[0], queryPt[1], 0.0f};  // 补零
+            float3 queryPt3D = float3{queryPt[0], queryPt[1], queryPt[2]};  // 补零
+
 
             // 构造查询参数
             std::vector<fcpw::GPUBoundingSphere> spheres;
-            spheres.emplace_back(queryPt3D, fcpw::maxFloat);
+            // spheres.emplace_back(queryPt3D, fcpw::maxFloat);
+            spheres.emplace_back(GPUBoundingSphere(queryPt3D, fcpw::maxFloat));
             // std::cout << "finish emplace_back" << std::endl;
 
             // 存储结果
             std::vector<fcpw::GPUInteraction> interactions;
-            dirichletBoundaryHandler.get_gpu_scene().findClosestPoints(spheres, interactions);
+            dirichletBoundaryHandler.gpuScene.findClosestPoints(
+                spheres, interactions);
             // gpuScene.findClosestPoints(spheres, interactions);
             // std::cout << "finish findClosestPoints" << std::endl;
 
-            if (interactions.empty()) {
-                std::cerr << "Error: No interactions found!" << std::endl;
+            if (interactions.empty() || interactions.size() != 1) {
+                std::cerr << "Error: No interactions found!    " << interactions.size() << std::endl;
                 return 0.0f;  // 或处理错误
             }
-            // std::cout << "finish to run query" << std::endl;
+            // std::cout << "computeSignedDistance: " << computeSignedDistance << std::endl;
             // 提取结果
-            return interactions.empty() ? 0.0f : interactions[0].d;
+            return computeSignedDistance ? 0.0f : interactions[0].d;
         };
 #else
-        geometricQueries.computeDistToAbsorbingBoundary = [absorbingBoundaryAggregate](
-                                                          const Vector<DIM>& x, bool computeSignedDistance) -> float {
+        std::cout << "use cpu" << std::endl;
+        geometricQueries.computeDistToAbsorbingBoundary =
+            [absorbingBoundaryAggregate](const Vector<DIM>& x,
+                                         bool computeSignedDistance) -> float {
             Vector<DIM> queryPt = x;
             fcpw::Interaction<DIM> interaction;
             fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            absorbingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
-
-            return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            absorbingBoundaryAggregate->findClosestPoint(sphere, interaction,
+                                                         computeSignedDistance);
+            std::cout << "finish cpu find" << std::endl;
+            return computeSignedDistance ? interaction.signedDistance(queryPt)
+                                         : interaction.d;
         };
-        #endif
-        geometricQueries.projectToAbsorbingBoundary = [absorbingBoundaryAggregate](
-                                                      Vector<DIM>& x, Vector<DIM>& normal,
-                                                      float& distance, bool computeSignedDistance) -> bool {
+#endif
+        geometricQueries.projectToAbsorbingBoundary =
+            [absorbingBoundaryAggregate](Vector<DIM>& x, Vector<DIM>& normal,
+                                         float& distance,
+                                         bool computeSignedDistance) -> bool {
             Vector<DIM> queryPt = x;
             fcpw::Interaction<DIM> interaction;
             fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            absorbingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
+            absorbingBoundaryAggregate->findClosestPoint(sphere, interaction,
+                                                         computeSignedDistance);
 
             x = interaction.p;
             normal = interaction.n;
-            distance = computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            distance = computeSignedDistance
+                           ? interaction.signedDistance(queryPt)
+                           : interaction.d;
 
             return true;
         };
-        geometricQueries.intersectAbsorbingBoundary = [&geometricQueries, absorbingBoundaryAggregate](
-                                                      const Vector<DIM>& origin, const Vector<DIM>& normal,
-                                                      const Vector<DIM>& dir, float tMax, bool onAborbingBoundary,
-                                                      IntersectionPoint<DIM>& intersectionPt) -> bool {
-            Vector<DIM> queryOrigin = onAborbingBoundary ?
-                                      geometricQueries.offsetPointAlongDirection(origin, -normal) :
-                                      origin;
+        geometricQueries.intersectAbsorbingBoundary =
+            [&geometricQueries, absorbingBoundaryAggregate](
+                const Vector<DIM>& origin, const Vector<DIM>& normal,
+                const Vector<DIM>& dir, float tMax, bool onAborbingBoundary,
+                IntersectionPoint<DIM>& intersectionPt) -> bool {
+            Vector<DIM> queryOrigin =
+                onAborbingBoundary ? geometricQueries.offsetPointAlongDirection(
+                                         origin, -normal)
+                                   : origin;
             Vector<DIM> queryDir = dir;
             fcpw::Ray<DIM> queryRay(queryOrigin, queryDir, tMax);
             fcpw::Interaction<DIM> queryInteraction;
-            bool hit = absorbingBoundaryAggregate->intersect(queryRay, queryInteraction, false);
-            if (!hit) return false;
+            bool hit = absorbingBoundaryAggregate->intersect(
+                queryRay, queryInteraction, false);
+            if (!hit)
+                return false;
 
             intersectionPt.pt = queryInteraction.p;
             intersectionPt.normal = queryInteraction.n;
@@ -1141,84 +1266,102 @@ void populateGeometricQueriesForDirichletBoundary(FcpwDirichletBoundaryHandler<D
 
             return true;
         };
-        geometricQueries.intersectAbsorbingBoundaryAllHits = [&geometricQueries, absorbingBoundaryAggregate](
-                                                             const Vector<DIM>& origin, const Vector<DIM>& normal,
-                                                             const Vector<DIM>& dir, float tMax, bool onAborbingBoundary,
-                                                             std::vector<IntersectionPoint<DIM>>& intersectionPts) -> int {
-            Vector<DIM> queryOrigin = onAborbingBoundary ?
-                                      geometricQueries.offsetPointAlongDirection(origin, -normal) :
-                                      origin;
+        geometricQueries.intersectAbsorbingBoundaryAllHits =
+            [&geometricQueries, absorbingBoundaryAggregate](
+                const Vector<DIM>& origin, const Vector<DIM>& normal,
+                const Vector<DIM>& dir, float tMax, bool onAborbingBoundary,
+                std::vector<IntersectionPoint<DIM>>& intersectionPts) -> int {
+            Vector<DIM> queryOrigin =
+                onAborbingBoundary ? geometricQueries.offsetPointAlongDirection(
+                                         origin, -normal)
+                                   : origin;
             Vector<DIM> queryDir = dir;
             fcpw::Ray<DIM> queryRay(queryOrigin, queryDir, tMax);
             std::vector<fcpw::Interaction<DIM>> queryInteractions;
-            int nIntersections = absorbingBoundaryAggregate->intersect(queryRay, queryInteractions, false, true);
+            int nIntersections = absorbingBoundaryAggregate->intersect(
+                queryRay, queryInteractions, false, true);
 
             intersectionPts.clear();
             for (int i = 0; i < nIntersections; i++) {
-                intersectionPts.emplace_back(IntersectionPoint<DIM>(queryInteractions[i].p,
-                                                                    queryInteractions[i].n,
-                                                                    queryInteractions[i].d));
+                intersectionPts.emplace_back(IntersectionPoint<DIM>(
+                    queryInteractions[i].p, queryInteractions[i].n,
+                    queryInteractions[i].d));
             }
 
             return nIntersections;
         };
-        geometricQueries.computeAbsorbingBoundarySignedVolume = [absorbingBoundaryAggregate]() -> float {
+        geometricQueries.computeAbsorbingBoundarySignedVolume =
+            [absorbingBoundaryAggregate]() -> float {
             return absorbingBoundaryAggregate->signedVolume();
         };
     }
 }
 
 template <size_t DIM, typename ReflectingBoundaryAggregateType>
-void populateGeometricQueriesForReflectingBoundary(const ReflectingBoundaryAggregateType *reflectingBoundaryAggregate,
-                                                   std::function<float(float)> branchTraversalWeight,
-                                                   GeometricQueries<DIM>& geometricQueries)
-{
+void populateGeometricQueriesForReflectingBoundary(
+    const ReflectingBoundaryAggregateType* reflectingBoundaryAggregate,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<DIM>& geometricQueries) {
     if (reflectingBoundaryAggregate) {
         geometricQueries.hasNonEmptyReflectingBoundary = true;
-        geometricQueries.computeDistToReflectingBoundary = [reflectingBoundaryAggregate](
-                                                           const Vector<DIM>& x, bool computeSignedDistance) -> float {
+        geometricQueries.computeDistToReflectingBoundary =
+            [reflectingBoundaryAggregate](const Vector<DIM>& x,
+                                          bool computeSignedDistance) -> float {
             // #ifdef FCPW_USE_GPU_LUYAN
             //     Vector<DIM> queryPt = x;
             //     fcpw::GPUInteraction<DIM> interaction;
             //     fcpw::GPUBoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            //     reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
+            //     reflectingBoundaryAggregate->findClosestPoint(sphere,
+            //     interaction, computeSignedDistance);
 
-            //     return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
-            // #else                                                
-                Vector<DIM> queryPt = x;
-                fcpw::Interaction<DIM> interaction;
-                fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-                reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
-
-                return computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
-            // #endif
-        };
-        geometricQueries.projectToReflectingBoundary = [reflectingBoundaryAggregate](
-                                                       Vector<DIM>& x, Vector<DIM>& normal,
-                                                       float& distance, bool computeSignedDistance) -> bool {
+            //     return computeSignedDistance ?
+            //     interaction.signedDistance(queryPt) : interaction.d;
+            // #else
             Vector<DIM> queryPt = x;
             fcpw::Interaction<DIM> interaction;
             fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
-            reflectingBoundaryAggregate->findClosestPoint(sphere, interaction, computeSignedDistance);
+            reflectingBoundaryAggregate->findClosestPoint(
+                sphere, interaction, computeSignedDistance);
+
+            return computeSignedDistance ? interaction.signedDistance(queryPt)
+                                         : interaction.d;
+            // #endif
+        };
+        geometricQueries.projectToReflectingBoundary =
+            [reflectingBoundaryAggregate](Vector<DIM>& x, Vector<DIM>& normal,
+                                          float& distance,
+                                          bool computeSignedDistance) -> bool {
+            Vector<DIM> queryPt = x;
+            fcpw::Interaction<DIM> interaction;
+            fcpw::BoundingSphere<DIM> sphere(queryPt, fcpw::maxFloat);
+            reflectingBoundaryAggregate->findClosestPoint(
+                sphere, interaction, computeSignedDistance);
 
             x = interaction.p;
             normal = interaction.n;
-            distance = computeSignedDistance ? interaction.signedDistance(queryPt) : interaction.d;
+            distance = computeSignedDistance
+                           ? interaction.signedDistance(queryPt)
+                           : interaction.d;
 
             return true;
         };
-        geometricQueries.intersectReflectingBoundary = [&geometricQueries, reflectingBoundaryAggregate](
-                                                       const Vector<DIM>& origin, const Vector<DIM>& normal,
-                                                       const Vector<DIM>& dir, float tMax, bool onReflectingBoundary,
-                                                       IntersectionPoint<DIM>& intersectionPt) -> bool {
-            Vector<DIM> queryOrigin = onReflectingBoundary ?
-                                      geometricQueries.offsetPointAlongDirection(origin, -normal) :
-                                      origin;
+        geometricQueries.intersectReflectingBoundary =
+            [&geometricQueries, reflectingBoundaryAggregate](
+                const Vector<DIM>& origin, const Vector<DIM>& normal,
+                const Vector<DIM>& dir, float tMax, bool onReflectingBoundary,
+                IntersectionPoint<DIM>& intersectionPt) -> bool {
+            Vector<DIM> queryOrigin =
+                onReflectingBoundary
+                    ? geometricQueries.offsetPointAlongDirection(origin,
+                                                                 -normal)
+                    : origin;
             Vector<DIM> queryDir = dir;
             fcpw::Ray<DIM> queryRay(queryOrigin, queryDir, tMax);
             fcpw::Interaction<DIM> queryInteraction;
-            bool hit = reflectingBoundaryAggregate->intersect(queryRay, queryInteraction, false);
-            if (!hit) return false;
+            bool hit = reflectingBoundaryAggregate->intersect(
+                queryRay, queryInteraction, false);
+            if (!hit)
+                return false;
 
             intersectionPt.pt = queryInteraction.p;
             intersectionPt.normal = queryInteraction.n;
@@ -1226,45 +1369,56 @@ void populateGeometricQueriesForReflectingBoundary(const ReflectingBoundaryAggre
 
             return true;
         };
-        geometricQueries.intersectReflectingBoundaryAllHits = [&geometricQueries, reflectingBoundaryAggregate](
-                                                              const Vector<DIM>& origin, const Vector<DIM>& normal,
-                                                              const Vector<DIM>& dir, float tMax, bool onReflectingBoundary,
-                                                              std::vector<IntersectionPoint<DIM>>& intersectionPts) -> int {
-            Vector<DIM> queryOrigin = onReflectingBoundary ?
-                                      geometricQueries.offsetPointAlongDirection(origin, -normal) :
-                                      origin;
+        geometricQueries.intersectReflectingBoundaryAllHits =
+            [&geometricQueries, reflectingBoundaryAggregate](
+                const Vector<DIM>& origin, const Vector<DIM>& normal,
+                const Vector<DIM>& dir, float tMax, bool onReflectingBoundary,
+                std::vector<IntersectionPoint<DIM>>& intersectionPts) -> int {
+            Vector<DIM> queryOrigin =
+                onReflectingBoundary
+                    ? geometricQueries.offsetPointAlongDirection(origin,
+                                                                 -normal)
+                    : origin;
             Vector<DIM> queryDir = dir;
             fcpw::Ray<DIM> queryRay(queryOrigin, queryDir, tMax);
             std::vector<fcpw::Interaction<DIM>> queryInteractions;
-            int nIntersections = reflectingBoundaryAggregate->intersect(queryRay, queryInteractions, false, true);
+            int nIntersections = reflectingBoundaryAggregate->intersect(
+                queryRay, queryInteractions, false, true);
 
             intersectionPts.clear();
             for (int i = 0; i < nIntersections; i++) {
-                intersectionPts.emplace_back(IntersectionPoint<DIM>(queryInteractions[i].p,
-                                                                    queryInteractions[i].n,
-                                                                    queryInteractions[i].d));
+                intersectionPts.emplace_back(IntersectionPoint<DIM>(
+                    queryInteractions[i].p, queryInteractions[i].n,
+                    queryInteractions[i].d));
             }
 
             return nIntersections;
         };
-        geometricQueries.intersectsWithReflectingBoundary = [&geometricQueries, reflectingBoundaryAggregate](
-                                                            const Vector<DIM>& xi, const Vector<DIM>& xj,
-                                                            const Vector<DIM>& ni, const Vector<DIM>& nj,
-                                                            bool offseti, bool offsetj) -> bool {
-            Vector<DIM> pt1 = offseti ? geometricQueries.offsetPointAlongDirection(xi, -ni) : xi;
-            Vector<DIM> pt2 = offsetj ? geometricQueries.offsetPointAlongDirection(xj, -nj) : xj;
+        geometricQueries.intersectsWithReflectingBoundary =
+            [&geometricQueries, reflectingBoundaryAggregate](
+                const Vector<DIM>& xi, const Vector<DIM>& xj,
+                const Vector<DIM>& ni, const Vector<DIM>& nj, bool offseti,
+                bool offsetj) -> bool {
+            Vector<DIM> pt1 =
+                offseti ? geometricQueries.offsetPointAlongDirection(xi, -ni)
+                        : xi;
+            Vector<DIM> pt2 =
+                offsetj ? geometricQueries.offsetPointAlongDirection(xj, -nj)
+                        : xj;
 
             return !reflectingBoundaryAggregate->hasLineOfSight(pt1, pt2);
         };
-        geometricQueries.sampleReflectingBoundary = [reflectingBoundaryAggregate, branchTraversalWeight](
-                                                    const Vector<DIM>& x, float radius, const Vector<DIM>& randNums,
-                                                    BoundarySample<DIM>& boundarySample) -> bool {
+        geometricQueries.sampleReflectingBoundary =
+            [reflectingBoundaryAggregate, branchTraversalWeight](
+                const Vector<DIM>& x, float radius, const Vector<DIM>& randNums,
+                BoundarySample<DIM>& boundarySample) -> bool {
             Vector<DIM> queryPt = x;
-            fcpw::BoundingSphere<DIM> querySphere(queryPt, radius*radius);
+            fcpw::BoundingSphere<DIM> querySphere(queryPt, radius * radius);
             fcpw::Interaction<DIM> queryInteraction;
-            int nHits = reflectingBoundaryAggregate->intersect(querySphere, queryInteraction,
-                                                               randNums, branchTraversalWeight);
-            if (nHits < 1) return false;
+            int nHits = reflectingBoundaryAggregate->intersect(
+                querySphere, queryInteraction, randNums, branchTraversalWeight);
+            if (nHits < 1)
+                return false;
 
             boundarySample.pt = queryInteraction.p;
             boundarySample.normal = queryInteraction.n;
@@ -1272,50 +1426,69 @@ void populateGeometricQueriesForReflectingBoundary(const ReflectingBoundaryAggre
 
             return true;
         };
-        geometricQueries.computeReflectingBoundarySignedVolume = [reflectingBoundaryAggregate]() -> float {
+        geometricQueries.computeReflectingBoundarySignedVolume =
+            [reflectingBoundaryAggregate]() -> float {
             return reflectingBoundaryAggregate->signedVolume();
         };
     }
 }
 
 template <size_t DIM, typename NeumannBoundaryAggregateType>
-void populateStarRadiusQueryForNeumannBoundary(const NeumannBoundaryAggregateType *reflectingBoundaryAggregate,
-                                               GeometricQueries<DIM>& geometricQueries)
-{
+void populateStarRadiusQueryForNeumannBoundary(
+    const NeumannBoundaryAggregateType* reflectingBoundaryAggregate,
+    GeometricQueries<DIM>& geometricQueries) {
     if (reflectingBoundaryAggregate) {
-        geometricQueries.computeStarRadiusForReflectingBoundary = [reflectingBoundaryAggregate](
-                                                                  const Vector<DIM>& x, float minRadius, float maxRadius,
-                                                                  float silhouettePrecision, bool flipNormalOrientation) -> float {
-            if (minRadius > maxRadius) return maxRadius;
+        geometricQueries.computeStarRadiusForReflectingBoundary =
+            [reflectingBoundaryAggregate](const Vector<DIM>& x, float minRadius,
+                                          float maxRadius,
+                                          float silhouettePrecision,
+                                          bool flipNormalOrientation) -> float {
+            if (minRadius > maxRadius)
+                return maxRadius;
             Vector<DIM> queryPt = x;
-            bool flipNormals = true; // FCPW's internal convention requires normals to be flipped
-            if (flipNormalOrientation) flipNormals = !flipNormals;
-            float squaredSphereRadius = maxRadius < fcpw::maxFloat ? maxRadius*maxRadius : fcpw::maxFloat;
+            bool flipNormals = true;  // FCPW's internal convention requires
+                                      // normals to be flipped
+            if (flipNormalOrientation)
+                flipNormals = !flipNormals;
+            float squaredSphereRadius = maxRadius < fcpw::maxFloat
+                                            ? maxRadius * maxRadius
+                                            : fcpw::maxFloat;
             fcpw::Interaction<DIM> interaction;
             fcpw::BoundingSphere<DIM> querySphere(queryPt, squaredSphereRadius);
-            bool found = reflectingBoundaryAggregate->findClosestSilhouettePoint(
-                querySphere, interaction, flipNormals, minRadius*minRadius, silhouettePrecision);
+            bool found =
+                reflectingBoundaryAggregate->findClosestSilhouettePoint(
+                    querySphere, interaction, flipNormals,
+                    minRadius * minRadius, silhouettePrecision);
 
-            return found ? std::max(interaction.d, minRadius) : std::max(maxRadius, minRadius);
+            return found ? std::max(interaction.d, minRadius)
+                         : std::max(maxRadius, minRadius);
         };
     }
 }
 
 template <size_t DIM, typename RobinBoundaryAggregateType>
-void populateStarRadiusQueryForRobinBoundary(const RobinBoundaryAggregateType *reflectingBoundaryAggregate,
-                                             GeometricQueries<DIM>& geometricQueries)
-{
+void populateStarRadiusQueryForRobinBoundary(
+    const RobinBoundaryAggregateType* reflectingBoundaryAggregate,
+    GeometricQueries<DIM>& geometricQueries) {
     if (reflectingBoundaryAggregate) {
-        geometricQueries.computeStarRadiusForReflectingBoundary = [reflectingBoundaryAggregate](
-                                                                  const Vector<DIM>& x, float minRadius, float maxRadius,
-                                                                  float silhouettePrecision, bool flipNormalOrientation) -> float {
-            if (minRadius > maxRadius) return maxRadius;
+        geometricQueries.computeStarRadiusForReflectingBoundary =
+            [reflectingBoundaryAggregate](const Vector<DIM>& x, float minRadius,
+                                          float maxRadius,
+                                          float silhouettePrecision,
+                                          bool flipNormalOrientation) -> float {
+            if (minRadius > maxRadius)
+                return maxRadius;
             Vector<DIM> queryPt = x;
-            bool flipNormals = true; // FCPW's internal convention requires normals to be flipped
-            if (flipNormalOrientation) flipNormals = !flipNormals;
-            float squaredSphereRadius = maxRadius < fcpw::maxFloat ? maxRadius*maxRadius : fcpw::maxFloat;
+            bool flipNormals = true;  // FCPW's internal convention requires
+                                      // normals to be flipped
+            if (flipNormalOrientation)
+                flipNormals = !flipNormals;
+            float squaredSphereRadius = maxRadius < fcpw::maxFloat
+                                            ? maxRadius * maxRadius
+                                            : fcpw::maxFloat;
             fcpw::BoundingSphere<DIM> querySphere(queryPt, squaredSphereRadius);
-            reflectingBoundaryAggregate->computeSquaredStarRadius(querySphere, flipNormals, silhouettePrecision);
+            reflectingBoundaryAggregate->computeSquaredStarRadius(
+                querySphere, flipNormals, silhouettePrecision);
 
             return std::max(std::sqrt(querySphere.r2), minRadius);
         };
@@ -1323,13 +1496,13 @@ void populateStarRadiusQueryForRobinBoundary(const RobinBoundaryAggregateType *r
 }
 
 template <size_t DIM>
-void populateGeometricQueriesForNeumannBoundary(FcpwNeumannBoundaryHandler<DIM>& neumannBoundaryHandler,
-                                                std::function<float(float)> branchTraversalWeight,
-                                                GeometricQueries<DIM>& geometricQueries)
-{
+void populateGeometricQueriesForNeumannBoundary(
+    FcpwNeumannBoundaryHandler<DIM>& neumannBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<DIM>& geometricQueries) {
     // fcpw::Aggregate<DIM> *reflectingBoundaryAggregate =
     //     neumannBoundaryHandler.scene.getSceneData()->aggregate.get();
-    fcpw::Aggregate<DIM> *reflectingBoundaryAggregate =
+    fcpw::Aggregate<DIM>* reflectingBoundaryAggregate =
         neumannBoundaryHandler.get_scene().getSceneData()->aggregate.get();
     populateGeometricQueriesForReflectingBoundary<DIM, fcpw::Aggregate<DIM>>(
         reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
@@ -1338,92 +1511,108 @@ void populateGeometricQueriesForNeumannBoundary(FcpwNeumannBoundaryHandler<DIM>&
 }
 
 template <size_t DIM>
-void populateGeometricQueriesForRobinBoundary(FcpwRobinBoundaryHandler<DIM>& robinBoundaryHandler,
-                                              std::function<float(float)> branchTraversalWeight,
-                                              GeometricQueries<DIM>& geometricQueries)
-{
-    std::cerr << "populateGeometricQueriesForRobinBoundary: Unsupported dimension: " << DIM << std::endl;
+void populateGeometricQueriesForRobinBoundary(
+    FcpwRobinBoundaryHandler<DIM>& robinBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<DIM>& geometricQueries) {
+    std::cerr
+        << "populateGeometricQueriesForRobinBoundary: Unsupported dimension: "
+        << DIM << std::endl;
     exit(EXIT_FAILURE);
 }
 
 template <>
-void populateGeometricQueriesForRobinBoundary<2>(FcpwRobinBoundaryHandler<2>& robinBoundaryHandler,
-                                                 std::function<float(float)> branchTraversalWeight,
-                                                 GeometricQueries<2>& geometricQueries)
-{
+void populateGeometricQueriesForRobinBoundary<2>(
+    FcpwRobinBoundaryHandler<2>& robinBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<2>& geometricQueries) {
     using PrimitiveBound = FcpwRobinBoundaryHandler<2>::PrimitiveBound;
     if (robinBoundaryHandler.baseline) {
-        using RobinAggregateType = ReflectanceBaseline<2, ReflectanceLineSegment<PrimitiveBound>>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.baseline.get();
+        using RobinAggregateType =
+            ReflectanceBaseline<2, ReflectanceLineSegment<PrimitiveBound>>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.baseline.get();
         populateGeometricQueriesForReflectingBoundary<2, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<2, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
 
 #ifdef FCPW_USE_ENOKI
     } else if (robinBoundaryHandler.mbvh) {
-        using RobinAggregateType = ReflectanceMbvh<FCPW_SIMD_WIDTH, 2,
-                                                   ReflectanceLineSegment<PrimitiveBound>,
-                                                   ReflectanceMbvhNode<2>,
-                                                   FcpwRobinBoundaryHandler<2>::WideNodeBound>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.mbvh.get();
+        using RobinAggregateType = ReflectanceMbvh<
+            FCPW_SIMD_WIDTH, 2, ReflectanceLineSegment<PrimitiveBound>,
+            ReflectanceMbvhNode<2>, FcpwRobinBoundaryHandler<2>::WideNodeBound>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.mbvh.get();
         populateGeometricQueriesForReflectingBoundary<2, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<2, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
 #endif
     } else if (robinBoundaryHandler.bvh) {
-        using RobinAggregateType = ReflectanceBvh<2, ReflectanceBvhNode<2>,
-                                                  ReflectanceLineSegment<PrimitiveBound>,
-                                                  FcpwRobinBoundaryHandler<2>::NodeBound>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.bvh.get();
+        using RobinAggregateType =
+            ReflectanceBvh<2, ReflectanceBvhNode<2>,
+                           ReflectanceLineSegment<PrimitiveBound>,
+                           FcpwRobinBoundaryHandler<2>::NodeBound>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.bvh.get();
         populateGeometricQueriesForReflectingBoundary<2, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<2, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
     }
 }
 
 template <>
-void populateGeometricQueriesForRobinBoundary<3>(FcpwRobinBoundaryHandler<3>& robinBoundaryHandler,
-                                                 std::function<float(float)> branchTraversalWeight,
-                                                 GeometricQueries<3>& geometricQueries)
-{
+void populateGeometricQueriesForRobinBoundary<3>(
+    FcpwRobinBoundaryHandler<3>& robinBoundaryHandler,
+    std::function<float(float)> branchTraversalWeight,
+    GeometricQueries<3>& geometricQueries) {
     using PrimitiveBound = FcpwRobinBoundaryHandler<3>::PrimitiveBound;
     if (robinBoundaryHandler.baseline) {
-        using RobinAggregateType = ReflectanceBaseline<3, ReflectanceTriangle<PrimitiveBound>>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.baseline.get();
+        using RobinAggregateType =
+            ReflectanceBaseline<3, ReflectanceTriangle<PrimitiveBound>>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.baseline.get();
         populateGeometricQueriesForReflectingBoundary<3, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<3, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
 
 #ifdef FCPW_USE_ENOKI
     } else if (robinBoundaryHandler.mbvh) {
-        using RobinAggregateType = ReflectanceMbvh<FCPW_SIMD_WIDTH, 3,
-                                                   ReflectanceTriangle<PrimitiveBound>,
-                                                   ReflectanceMbvhNode<3>,
-                                                   FcpwRobinBoundaryHandler<3>::WideNodeBound>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.mbvh.get();
+        using RobinAggregateType = ReflectanceMbvh<
+            FCPW_SIMD_WIDTH, 3, ReflectanceTriangle<PrimitiveBound>,
+            ReflectanceMbvhNode<3>, FcpwRobinBoundaryHandler<3>::WideNodeBound>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.mbvh.get();
         populateGeometricQueriesForReflectingBoundary<3, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<3, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
 #endif
     } else if (robinBoundaryHandler.bvh) {
-        using RobinAggregateType = ReflectanceBvh<3, ReflectanceBvhNode<3>,
-                                                  ReflectanceTriangle<PrimitiveBound>,
-                                                  FcpwRobinBoundaryHandler<3>::NodeBound>;
-        RobinAggregateType *reflectingBoundaryAggregate = robinBoundaryHandler.bvh.get();
+        using RobinAggregateType =
+            ReflectanceBvh<3, ReflectanceBvhNode<3>,
+                           ReflectanceTriangle<PrimitiveBound>,
+                           FcpwRobinBoundaryHandler<3>::NodeBound>;
+        RobinAggregateType* reflectingBoundaryAggregate =
+            robinBoundaryHandler.bvh.get();
         populateGeometricQueriesForReflectingBoundary<3, RobinAggregateType>(
-            reflectingBoundaryAggregate, branchTraversalWeight, geometricQueries);
+            reflectingBoundaryAggregate, branchTraversalWeight,
+            geometricQueries);
         populateStarRadiusQueryForRobinBoundary<3, RobinAggregateType>(
             reflectingBoundaryAggregate, geometricQueries);
     }
 }
 
-std::function<float(float)> getBranchTraversalWeightCallback(float minRadialDist)
-{
+std::function<float(float)> getBranchTraversalWeightCallback(
+    float minRadialDist) {
     HarmonicGreensFnFreeSpace<3> harmonicGreensFn;
     return [harmonicGreensFn, minRadialDist](float r2) -> float {
         float r = std::max(std::sqrt(r2), minRadialDist);
@@ -1431,4 +1620,4 @@ std::function<float(float)> getBranchTraversalWeightCallback(float minRadialDist
     };
 }
 
-} // zombie
+}  // namespace zombie

@@ -1,7 +1,7 @@
 {
     "solverType": "wost",
     "solver": {
-        "nWalks": 128,
+        "nWalks": 1,
         "maxWalkLength": 1024,
         "epsilonShellForAbsorbingBoundary": 1e-3,
         "epsilonShellForReflectingBoundary": 1e-3,
@@ -9,7 +9,8 @@
         "splittingThreshold": 1.5,
         "ignoreAbsorbingBoundaryContribution": false,
         "ignoreReflectingBoundaryContribution": true,
-        "ignoreSourceContribution": true
+        "ignoreSourceContribution": true,
+        "runSingleThreaded": true
     },
     "modelProblem": {
         "geometry": "demo/model_problems/engine/data/geometry.obj",

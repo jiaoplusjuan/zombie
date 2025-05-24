@@ -146,9 +146,14 @@ inline void WalkOnStars<T, DIM>::solve(const PDE<T, DIM>& pde,
 {
     // solve the PDE at each point independently
     int nPoints = (int)samplePts.size();
+    std::cout << "runsinglethreaded: " << runSingleThreaded << std::endl;
     if (runSingleThreaded || walkSettings.printLogs) {
         for (int i = 0; i < nPoints; i++) {
+            if(i % 100 == 0){
+                std::cout << "Solving point " << i << " of " << nPoints << std::endl;
+            }
             solve(pde, walkSettings, nWalks[i], samplePts[i]);
+            std::cout << "finish solve" << std::endl;
             if (reportProgress) reportProgress(1, 0);
         }
 
