@@ -7,9 +7,9 @@ for step in "${numsteps[@]}"; do
     CONFIG_PREFIX="engine/solutions/ours_"
     CONFIG_PREFIX2="engine/solutions/wost_"
     
-    config_file="${CONFIG_PREFIX}${step}_color.png"
-    config_file2="${CONFIG_PREFIX2}${step}_color.png"
-    ref_file="engine/solutions/wost_color.png"
+    config_file="${CONFIG_PREFIX}${step}_color.pfm"
+    config_file2="${CONFIG_PREFIX2}${step}_color.pfm"
+    ref_file="engine/solutions/wost_color.pfm"
 
     echo "🚀 正在比较: $config_file"
     

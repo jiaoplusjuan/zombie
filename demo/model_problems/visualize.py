@@ -53,6 +53,7 @@ def plot_results(data, output_file='mse_comparison.png'):
     
     # 设置对数坐标
     plt.xscale('log', base=2)
+    plt.yscale('log', base=2)
     plt.xticks(data['ours'][0] if data['ours'][0] else data['wost'][0], rotation=45)
     
     # 自动调整布局
