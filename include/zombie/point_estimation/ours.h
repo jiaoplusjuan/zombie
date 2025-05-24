@@ -78,7 +78,8 @@ protected:
                             bool flipNormalOrientation,
                             pcg32& sampler, WalkState<T, DIM>& state,
                             std::queue<WalkState<T, DIM>>& stateQueue,
-                            CachesPoint<T, DIM>& cachesPoint
+                            CachesPoint<T, DIM>& cachesPoint,
+                            CachesBall<T, DIM>& cachesBall
                         ) const;
 
     // returns the terminal contribution from the end of the walk
@@ -336,7 +337,8 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
                                                     bool flipNormalOrientation,
                                                     pcg32& sampler, WalkState<T, DIM>& state,
                                                     std::queue<WalkState<T, DIM>>& stateQueue,
-                                                    CachesPoint<T, DIM>& cachesPoint
+                                                    CachesPoint<T, DIM>& cachesPoint,
+                                                    CachesBall<T, DIM>& cachesBall
                                                 ) const
 {
     // recursively perform a random walk till it reaches the absorbing boundary
@@ -385,6 +387,7 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
 
         // update the ball center and radius
         state.greensFn->updateBall(state.currentPt, starRadius);
+        
 
         // callback for the current walk state
         if (walkStateCallback) {
@@ -419,6 +422,10 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
             intersectionPt.pt = currentPt + starRadius*direction;
             intersectionPt.dist = starRadius;
         }
+        if(firstStep){
+        cachesBall.updateBall(state.currentPt, starRadius);
+        }
+
 
         // compute the contribution from the reflecting boundary
         computeReflectingBoundaryContribution(pde, walkSettings, starRadius, flipNormalOrientation, sampler, state);
@@ -624,7 +631,7 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
             // perform the walk with the dequeued state
             WalkCompletionCode code = walk(pde, walkSettings, distToAbsorbingBoundary,
                                            firstSphereRadius, flipNormalOrientation,
-                                           samplePt.sampler, state, stateQueue,cachesPoint
+                                           samplePt.sampler, state, stateQueue,cachesPoint,cachesBall
                                         );
 
             if (code == WalkCompletionCode::ReachedAbsorbingBoundary ||
@@ -793,9 +800,10 @@ inline void CachesBallMethod<T, DIM>::estimateSolutionAndGradient(const PDE<T, D
                 float distToAbsorbingBoundary = queries.computeDistToAbsorbingBoundary(state.currentPt, false);
                 
                 CachesPoint <T, DIM> cachesPoint;
+                CachesBall<T, DIM> cachesBall;
                 // perform the walk with the dequeued state
                 WalkCompletionCode code = walk(pde, walkSettings, distToAbsorbingBoundary, 0.0f,
-                                               false, samplePt.sampler, state, stateQueue,cachesPoint);
+                                               false, samplePt.sampler, state, stateQueue,cachesPoint,cachesBall);
 
                 if (code == WalkCompletionCode::ReachedAbsorbingBoundary ||
                     code == WalkCompletionCode::TerminatedWithRussianRoulette ||

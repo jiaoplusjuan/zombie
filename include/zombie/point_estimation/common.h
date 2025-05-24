@@ -360,6 +360,8 @@ struct CachesBall {
     CachesBall(const Vector<DIM>& center, T radius)
         : center(center), radius(radius) {}
 
+    CachesBall(){}
+
     // 修正点3：参数类型显式声明
     void addPoint(const Vector<DIM>& point, T value, 
                  const Vector<DIM>& normal,
@@ -425,6 +427,9 @@ struct CachesBall {
         // }
         double ans = 0;
         // for(int i = 0; i < points.size(); i++){
+        //     std::cout << "point";
+        //     std::cout << points[i].point - center;
+        //     std::cout << "point end";
         //     std::cout << (points[i].point - center).dot(points[i].point - center) << " " << radius * radius << std::endl;
         // }
         for(int i = 0; i < points.size(); i++){
@@ -433,6 +438,11 @@ struct CachesBall {
             // std::cout << points[i].value << " " << getPossionKernel2(point, normal, i) << std::endl;
         }
         return ans * (2 * M_PI * radius) / points.size();
+    }
+
+    void updateBall(const Vector<DIM>& center_, T radius_) {
+        center = center_;
+        radius = radius_;
     }
 
     int getSampleCount() const {

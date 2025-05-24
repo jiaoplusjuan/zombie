@@ -492,18 +492,23 @@ void getSolutionOurs(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
         else{
             solution[i] = ans / count;
         }
-        if(solution[i] >= 1 || solution[i] < 0){
-            std::cout << "solution: " << solution[i] << std::endl;
+        if(solution[i] >= 1){
+            solution[i] = 1.0;
+        }
+        else if(solution[i] <= 0){
+            solution[i] = 0.0;
+        }
+        else{
+            solution[i] = solution[i];
+        }
+        if(count <= 100){
+            solution[i] = samplePts[i].statistics.getEstimatedSolution();
         }
         // 打印进度
         if (i % 100 == 0) {
             std::cout << "Progress: " << (i * 100.0 / samplePts.size()) << "%\r";
             std::cout.flush();
         }
-    }
-
-    for (int i = 0; i < (int)samplePts.size(); i++) {
-        std::cout << solution[i] << std::endl;
     }
 }
 
