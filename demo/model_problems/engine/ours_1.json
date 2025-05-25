@@ -10,6 +10,7 @@
         "ignoreAbsorbingBoundaryContribution": false,
         "ignoreReflectingBoundaryContribution": true,
         "ignoreSourceContribution": true,
+        "stepsBeforeUsingMaximalSpheres": 0,
         "runSingleThreaded": true
     },
     "modelProblem": {
@@ -30,6 +31,7 @@
         "saveColormapped": true,
         "colormap": "turbo",
         "colormapMinVal": 0.0,
-        "colormapMaxVal": 1.1
+        "colormapMaxVal": 1.1,
+        "csvFilename": "demo/model_problems/engine/solutions/ours_1.csv"
     }
 }

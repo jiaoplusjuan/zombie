@@ -5,7 +5,7 @@ import re
 
 def extract_step(filename):
     """从文件名中提取步数"""
-    match = re.search(r'_(\d+)_color\.pfm', filename)
+    match = re.search(r'_(\d+)\.csv', filename)
     if match:
         return int(match.group(1))
     return float('inf')  # 无效文件名放在最后
@@ -15,10 +15,10 @@ def parse_data(data):
     result = {'ours': {}, 'wost': {}}
     
     for path, mse in data.items():
-        if 'ours' in path:
+        if 'ours' in path and "color" not in path:
             step = extract_step(path)
             result['ours'][step] = mse
-        elif 'wost' in path:
+        elif 'wost' in path and "color" not in path:
             step = extract_step(path)
             result['wost'][step] = mse
             
@@ -64,7 +64,7 @@ def plot_results(data, output_file='mse_comparison.png'):
     plt.show()
     print(f"图表已保存至: {output_file}")
 
-def main(json_file='diff.json'):
+def main(json_file='diff_csv.json'):
     """主函数"""
     try:
         with open(json_file, 'r') as f:

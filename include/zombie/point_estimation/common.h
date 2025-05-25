@@ -348,6 +348,7 @@ struct CachesPoint{
    float direction_normal = 0.0f;
    bool isOnNeumann = false;
    T jacobi = 0.0f;
+   bool initialized = false;
 };
 
 template <typename T, size_t DIM>
@@ -372,16 +373,25 @@ struct CachesBall {
     }
 
     void addPoint(const CachesPoint<T, DIM>& point) {
+        double var = (point.point - center).dot(point.point - center) - radius * radius;
+        // if(abs(var) > 1e-5){
+        //     std::cout << "ERROR" << std::endl;
+        //     std::cout << point.point<< " "<< center << " " << var << std::endl;
+        // }else{
+        //     std::cout << "OK" << std::endl;
+        //     std::cout << point.point<< " "<< center << " " << var << std::endl;
+        // }
         points.push_back(point);
     }
 
     bool satisfyBallCondition(const Vector<DIM>& point) const {
-        double distance = (point - center).norm();
+        double distance = (point - center).dot(point - center);
+        distance = sqrt(distance);
         // std::cout << "POINT";
         // std::cout << point - center << " " << distance << std::endl;
         bool inside = distance <= radius;
         if (inside) {
-            if(distance >= 0.5 * radius) {
+            if(distance >= 0.5 * radius || distance < 0.01) {
                 return false;
             }
             return true;

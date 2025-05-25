@@ -27,6 +27,7 @@ base_config = {
         "useSdfForAbsorbingBoundary": False
     },
     "output": {
+        ""
         "solutionFile": None,  # 动态生成文件名
         "gridRes": 256,
         "boundaryDistanceMask": 1e-2,
@@ -56,6 +57,7 @@ for n_walks in n_walks_values:
     # 设置动态值
     config["solver"]["nWalks"] = n_walks
     config["output"]["solutionFile"] = f"demo/model_problems/engine/solutions/wost_{n_walks}.pfm"
+    config["output"]["csvFilename"] = f"demo/model_problems/engine/solutions/wost_{n_walks}.csv"
     
     # 生成文件名
     filename = os.path.join(output_dir, f"wost_{n_walks}.json")

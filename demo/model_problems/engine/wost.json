@@ -1,7 +1,7 @@
 {
     "solverType": "wost",
     "solver": {
-        "nWalks": 1048576,
+        "nWalks": 262144,
         "maxWalkLength": 65536,
         "epsilonShellForAbsorbingBoundary": 1e-3,
         "epsilonShellForReflectingBoundary": 1e-3,
@@ -29,6 +29,7 @@
         "saveColormapped": true,
         "colormap": "turbo",
         "colormapMinVal": 0.0,
-        "colormapMaxVal": 1.1
+        "colormapMaxVal": 1.1,
+        "csvFilename": "demo/model_problems/engine/solutions/wost.csv"
     }
 }

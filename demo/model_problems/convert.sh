@@ -10,6 +10,8 @@ for step in "${numsteps[@]}"; do
     
     config_file="${CONFIG_PREFIX}${step}_color.pfm"
     config_file2="${CONFIG_PREFIX2}${step}_color.pfm"
+    config_file3="${CONFIG_PREFIX}${step}.pfm"
+    config_file4="${CONFIG_PREFIX2}${step}.pfm"
     
     echo "🚀 正在运行配置文件: $config_file"
     
@@ -19,7 +21,17 @@ for step in "${numsteps[@]}"; do
     echo "🚀 正在运行配置文件: $config_file2"
     # 执行命令
     python pfm2image.py "$config_file2"
+
+        echo "🚀 正在运行配置文件: $config_file3"
+    
+    # 执行命令
+    python pfm2image.py "$config_file3"
+
+    echo "🚀 正在运行配置文件: $config_file4"
+    # 执行命令
+    python pfm2image.py "$config_file4"
     
 done
 
-# python pfm2image.py engine/solutions/wost_color.pfm
+python pfm2image.py engine/solutions/wost_color.pfm
+python pfm2image.py engine/solutions/wost.pfm

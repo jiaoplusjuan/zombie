@@ -14,6 +14,7 @@ base_config = {
         "ignoreAbsorbingBoundaryContribution": False,
         "ignoreReflectingBoundaryContribution": True,
         "ignoreSourceContribution": True,
+        "stepsBeforeUsingMaximalSpheres": 0,
         "runSingleThreaded": True
     },
     "modelProblem": {
@@ -56,6 +57,7 @@ for n_walks in n_walks_values:
     # 设置动态值
     config["solver"]["nWalks"] = n_walks
     config["output"]["solutionFile"] = f"demo/model_problems/engine/solutions/ours_{n_walks}.pfm"
+    config["output"]["csvFilename"] = f"demo/model_problems/engine/solutions/ours_{n_walks}.csv"
     
     # 生成文件名
     filename = os.path.join(output_dir, f"ours_{n_walks}.json")

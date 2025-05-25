@@ -423,7 +423,7 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
             intersectionPt.dist = starRadius;
         }
         if(firstStep){
-        cachesBall.updateBall(state.currentPt, starRadius);
+            cachesBall.updateBall(state.currentPt, starRadius);
         }
 
 
@@ -473,6 +473,7 @@ inline WalkCompletionCode CachesBallMethod<T, DIM>::walk(const PDE<T, DIM>& pde,
         // compute the distance to the absorbing boundary
         distToAbsorbingBoundary = queries.computeDistToAbsorbingBoundary(state.currentPt, false);
         if(firstStep){
+            cachesPoint.initialized = true;
             cachesPoint.point = state.currentPt;
             cachesPoint.normal = state.currentNormal;
         }
@@ -652,7 +653,9 @@ inline void CachesBallMethod<T, DIM>::estimateSolution(const PDE<T, DIM>& pde,
         }
 
         if (success) {
-            cachesBall.addPoint(cachesPoint);
+            if(cachesPoint.initialized){
+                cachesBall.addPoint(cachesPoint);
+            }
             // update statistics
             samplePt.statistics.addSolutionEstimate(totalContribution);
             samplePt.statistics.addSplits(splitsPerformed);

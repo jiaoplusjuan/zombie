@@ -23,6 +23,7 @@ def calculate_image_difference(path1, path2, output_diff=None, output_json=None)
     diff = np.abs(img1 - img2).astype(np.uint8)
 
     # 计算 L2 误差（RMSE）
+    # print(img1)
     mse = np.mean((img1 - img2) ** 2)
     rmse = np.sqrt(mse)
 
@@ -34,6 +35,7 @@ def calculate_image_difference(path1, path2, output_diff=None, output_json=None)
     }
 
     if output_json:
+
         output_json = "diff.json"
         existing_data = {}
         if os.path.exists(output_json):

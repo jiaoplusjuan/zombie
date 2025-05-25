@@ -4,6 +4,7 @@
 
 #include "model_problem.h"
 #include "grid.h"
+#include <filesystem> 
 
 using json = nlohmann::json;
 
@@ -501,7 +502,7 @@ void getSolutionOurs(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
         else{
             solution[i] = solution[i];
         }
-        if(count <= 100){
+        if(count <= 10){
             solution[i] = samplePts[i].statistics.getEstimatedSolution();
         }
         // 打印进度
@@ -579,6 +580,29 @@ void runSolver(const std::string& solverType, const json& config,
     }
 }
 
+void saveSolutionToCSV(const std::vector<float>& solution, const std::vector<Vector2>& solveLocations, const std::string& filename) {
+    std::ofstream csvFile(filename);
+    if (!csvFile.is_open()) {
+        std::cerr << "Error: Unable to open file " << filename << " for writing." << std::endl;
+        return;
+    }
+    
+    // 写入CSV头部
+    csvFile << "x,y,solution_value" << std::endl;
+    
+    // 写入数据
+    for (size_t i = 0; i < solution.size(); ++i) {
+        if (i < solveLocations.size()) { // 确保有对应的位置信息
+            csvFile << solveLocations[i][0] << "," 
+                    << solveLocations[i][1] << "," 
+                    << solution[i] << std::endl;
+        }
+    }
+    
+    csvFile.close();
+    std::cout << "Solution saved to CSV file: " << filename << std::endl;
+}
+
 int main(int argc, const char *argv[])
 {
     if (argc != 2) {
@@ -622,7 +646,14 @@ int main(int argc, const char *argv[])
     runSolver<float, 2>(solverType, solverConfig, absorbingBoundaryPositions, absorbingBoundaryIndices,
                         reflectingBoundaryPositions, reflectingBoundaryIndices, queries, pde,
                         solveDoubleSided, solveLocations, distanceInfo, solution);
-
+    
+    // 把solution以csv的形式保存下来
+   
+    // 保存solution到CSV文件
+    std::string csvFilename = getOptional<std::string>(outputConfig, "csvFilename", "solution.csv");
+    csvFilename = zombieDirectoryPath + csvFilename;
+    saveSolutionToCSV(solution, solveLocations, csvFilename);
+    
     // save the solution to disk
     saveGridValues(outputConfig, zombieDirectoryPath, distanceInfo, solution);
 }

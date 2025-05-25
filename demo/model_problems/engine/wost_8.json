@@ -30,6 +30,7 @@
         "saveColormapped": true,
         "colormap": "turbo",
         "colormapMinVal": 0.0,
-        "colormapMaxVal": 1.1
+        "colormapMaxVal": 1.1,
+        "csvFilename": "demo/model_problems/engine/solutions/wost_8.csv"
     }
 }

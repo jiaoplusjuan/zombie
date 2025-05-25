@@ -7,17 +7,24 @@ for step in "${numsteps[@]}"; do
     CONFIG_PREFIX="engine/solutions/ours_"
     CONFIG_PREFIX2="engine/solutions/wost_"
     
-    config_file="${CONFIG_PREFIX}${step}_color.pfm"
-    config_file2="${CONFIG_PREFIX2}${step}_color.pfm"
-    ref_file="engine/solutions/wost_color.pfm"
+    config_file="${CONFIG_PREFIX}${step}.pfm"
+    config_file2="${CONFIG_PREFIX2}${step}.pfm"
+    ref_file="engine/solutions/wost.pfm"
+
+    config_file3="${CONFIG_PREFIX}${step}_color.pfm"
+    config_file4="${CONFIG_PREFIX2}${step}_color.pfm"
+    ref_file2="engine/solutions/wost_color.pfm"
 
     echo "🚀 正在比较: $config_file"
     
     # 执行命令
     python image_diff.py --image1 "$config_file" --image2 "$ref_file"
 
-    echo "🚀 正在比较: $config_file2"
     # 执行命令
     python image_diff.py --image1 "$config_file2" --image2 "$ref_file"
+
+    python image_diff.py --image1 "$config_file3" --image2 "$ref_file2"
+
+    python image_diff.py --image1 "$config_file4" --image2 "$ref_file2"
     
 done
