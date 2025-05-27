@@ -12,15 +12,15 @@ def extract_step(filename):
 
 def parse_data(data):
     """解析原始数据，返回格式化数据"""
-    result = {'ours': {}, 'wost': {}}
+    result = {'mean_value': {}, 'mean_value_w': {}}
     
     for path, mse in data.items():
-        if 'ours' in path and "color" not in path:
+        if 'mean_value' in path and "color" not in path:
             step = extract_step(path)
-            result['ours'][step] = mse
-        elif 'wost' in path and "color" not in path:
+            result['mean_value'][step] = mse
+        elif 'mean_value_w' in path and "color" not in path:
             step = extract_step(path)
-            result['wost'][step] = mse
+            result['mean_value_w'][step] = mse
             
     # 按步数排序
     for method in result:
@@ -34,18 +34,18 @@ def plot_results(data, output_file='mse_comparison.png'):
     """绘制对比图表"""
     plt.figure(figsize=(12, 7))
     
-    # 绘制 ours 曲线
-    if data['ours'][0]:
-        plt.plot(data['ours'][0], data['ours'][1], 
-                marker='o', label='Ours', color='#4c72b0', linewidth=2)
+    # 绘制 mean_value 曲线
+    if data['mean_value'][0]:
+        plt.plot(data['mean_value'][0], data['mean_value'][1], 
+                marker='o', label='mean_value', color='#4c72b0', linewidth=2)
     
-    # 绘制 wost 曲线
-    if data['wost'][0]:
-        plt.plot(data['wost'][0], data['wost'][1], 
-                marker='s', label='WOST', color='#c44e52', linewidth=2)
+    # 绘制 mean_value_w 曲线
+    if data['mean_value_w'][0]:
+        plt.plot(data['mean_value_w'][0], data['mean_value_w'][1], 
+                marker='s', label='mean_value_w', color='#c44e52', linewidth=2)
     
     # 设置图表样式
-    plt.title('MSE Comparison Between Ours and WOST Methods', fontsize=16)
+    plt.title('MSE Comparison Between mean_value and mean_value_w Methods', fontsize=16)
     plt.xlabel('Number of Steps (log scale)', fontsize=14)
     plt.ylabel('Mean Squared Error (MSE)', fontsize=14)
     plt.grid(True, linestyle='--', alpha=0.7)
@@ -54,7 +54,7 @@ def plot_results(data, output_file='mse_comparison.png'):
     # 设置对数坐标
     plt.xscale('log', base=2)
     plt.yscale('log', base=2)
-    plt.xticks(data['ours'][0] if data['ours'][0] else data['wost'][0], rotation=45)
+    plt.xticks(data['mean_value'][0] if data['mean_value'][0] else data['mean_value_w'][0], rotation=45)
     
     # 自动调整布局
     plt.tight_layout()
@@ -72,7 +72,7 @@ def main(json_file='diff_csv.json'):
             
         formatted_data = parse_data(raw_data)
         
-        if not formatted_data['ours'][0] and not formatted_data['wost'][0]:
+        if not formatted_data['mean_value'][0] and not formatted_data['mean_value_w'][0]:
             print("未找到有效的数据点")
             return
             

@@ -15,7 +15,7 @@ def load_image(path):
     return img
 
 for i in [1,2,4,8,16,32,64,128,256,512,1024]:
-    for j in ["ours","wost"]:
+    for j in ["ours","wost", "meanvalue","meanvalue_w","meanvalue_w_r","meanvalue_r"]:
         # 读取图片文件
         img1 = load_image(f"engine/solutions/{j}_{i}.png")
         img2 = load_image("engine/solutions/wost.png")

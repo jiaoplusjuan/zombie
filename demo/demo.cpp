@@ -5,6 +5,7 @@
 #include "model_problem.h"
 #include "grid.h"
 #include <filesystem> 
+#include <random>
 
 using json = nlohmann::json;
 
@@ -44,6 +45,44 @@ void createSamplePoints(const std::vector<zombie::Vector<DIM>>& solveLocations,
                                                            estimationQuantity, pdf,
                                                            distToAbsorbingBoundary,
                                                            distToReflectingBoundary));
+    }
+}
+
+template <typename T, size_t DIM>
+void createRandomSamplePoints(const std::vector<zombie::Vector<DIM>>& solveLocations,
+                        const std::vector<DistanceInfo>& distanceInfo,
+                        std::vector<zombie::SamplePoint<T, DIM>>& samplePts)
+{
+    for (int i = 0; i < (int)solveLocations.size(); i++) {
+        zombie::Vector<DIM> pt = solveLocations[i];
+        zombie::Vector<DIM> normal = zombie::Vector<DIM>::Zero();
+        zombie::SampleType sampleType = zombie::SampleType::InDomain;
+        zombie::EstimationQuantity estimationQuantity = distanceInfo[i].inValidSolveRegion ?
+                                                        zombie::EstimationQuantity::Solution:
+                                                        zombie::EstimationQuantity::None;
+        float pdf = 1.0f;
+        float distToAbsorbingBoundary = distanceInfo[i].distToAbsorbingBoundary;
+        float distToReflectingBoundary = distanceInfo[i].distToReflectingBoundary;
+
+        std::random_device rd;  // 硬件熵源
+        std::mt19937 gen(rd()); // 梅森旋转引擎
+        std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+        float randomValue = dist(gen);  // 生成 [0.0, 1.0] 的 float
+        // 根据随机数决定是否使用随机采样
+        //std::cout << randomValue << std::endl;
+        if (randomValue < 0.1f) {
+            samplePts.emplace_back(zombie::SamplePoint<T, DIM>(pt, normal, sampleType,
+                                                           estimationQuantity, pdf,
+                                                           distToAbsorbingBoundary,
+                                                           distToReflectingBoundary));
+        }else{
+            zombie::Vector<DIM> pt = zombie::Vector<DIM>::Zero();
+            samplePts.emplace_back(zombie::SamplePoint<T, DIM>(pt, normal, sampleType,
+                                                           estimationQuantity, pdf,
+                                                           distToAbsorbingBoundary,
+                                                           distToReflectingBoundary));
+        }
     }
 }
 
@@ -482,7 +521,7 @@ void getSolutionOurs(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
         double ans = 0.0;
         int count = 0;
         for(int j = 0; j < (int)cachesBalls.size(); j++){
-            if(cachesBalls[j].satisfyBallCondition(samplePts[i].pt)){
+            if(cachesBalls[j].satisfyBallCondition(samplePts[i].pt) && samplePts[i].distToAbsorbingBoundary > 0.02){
                 ans += cachesBalls[j].getEstimatedSolution(samplePts[i].pt, samplePts[i].normal);
                 count += 1;
             }
@@ -512,6 +551,169 @@ void getSolutionOurs(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
         }
     }
 }
+
+template <typename T, size_t DIM>
+void getSolutionMean(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
+                    std::vector<zombie::SamplePoint<T, DIM>>& randomSamplePts,
+                 std::vector<T>& solution, bool weighted, bool recursive)
+{
+    solution.resize(samplePts.size(), T(0.0f));
+    if(!recursive){
+        for (int i = 0; i < (int)samplePts.size(); i++) {
+            double radius = samplePts[i].distToAbsorbingBoundary;
+            double ans = 0;
+            int count = 0;
+            if(!weighted){
+                for(int j = 0; j < (int)randomSamplePts.size(); j++){
+                    if(randomSamplePts[j].pt == zombie::Vector<DIM>::Zero()){
+                        continue;
+                    }
+                    double dist = (randomSamplePts[j].pt - samplePts[i].pt).norm();
+                    //std::cout << dist << " " << radius << std::endl;
+                    if(dist < radius && samplePts[i].distToAbsorbingBoundary > 0.02){
+                        ans += randomSamplePts[j].statistics.getEstimatedSolution();
+                        count += 1;
+                    }
+                }
+                if(count == 0){
+                    solution[i] = samplePts[i].statistics.getEstimatedSolution();
+                }else{
+                    solution[i] = ans / count;
+                    if(solution[i] >= 1){
+                        solution[i] = 1.0;
+                    }
+                    else if(solution[i] <= 0){
+                        solution[i] = 0.0;
+                    }
+                    else{
+                        solution[i] = solution[i];
+                    }
+                }
+                //std::cout << count << std::endl;
+            }else{
+                double total_weight = 0.0;
+                for(int j = 0; j < (int)randomSamplePts.size(); j++){
+                    double dist = (randomSamplePts[j].pt - samplePts[i].pt).norm();
+                    if(dist < radius && samplePts[i].distToAbsorbingBoundary > 0.02){
+                        if(randomSamplePts[j].pt == zombie::Vector<DIM>::Zero()){
+                            continue;
+                        }
+                        double weight = 1 - (dist * dist / (radius * radius));
+                        ans += randomSamplePts[j].statistics.getEstimatedSolution() * weight;
+                        total_weight += weight;
+                        count += 1;
+                    }
+                }
+                if(count == 0){
+                    solution[i] = samplePts[i].statistics.getEstimatedSolution();
+                }else{
+                    solution[i] = ans / total_weight;
+                    if(solution[i] >= 1){
+                        solution[i] = 1.0;
+                    }
+                    else if(solution[i] <= 0){
+                        solution[i] = 0.0;
+                    }
+                    else{
+                        solution[i] = solution[i];
+                    }
+                }
+            }
+            
+            // 输出进度
+            if (i % 100 == 0) {
+                std::cout << "Progress: " << (i * 100.0 / samplePts.size()) << "%\r";
+                std::cout.flush();
+            }
+        }
+    }else{
+        int iteration = 0;
+        while(true){
+            double diff = 0.0;
+            std::vector<T> old_solution = solution;
+            for (int i = 0; i < (int)samplePts.size(); i++) {
+                double radius = samplePts[i].distToAbsorbingBoundary;
+                double ans = 0;
+                int count = 0;
+                double old_value = solution[i];
+                if(!weighted){
+                    for(int j = 0; j < (int)randomSamplePts.size(); j++){
+                        if(randomSamplePts[j].pt == zombie::Vector<DIM>::Zero()){
+                            continue;
+                        }
+                        double dist = (randomSamplePts[j].pt - samplePts[i].pt).norm();
+                        if(dist < radius && samplePts[i].distToAbsorbingBoundary > 0.02){
+                            ans += randomSamplePts[j].statistics.getEstimatedSolution();
+                            count += 1;
+                        }
+                    }
+                    if(count == 0){
+                        solution[i] = samplePts[i].statistics.getEstimatedSolution();
+                    }else{
+                        solution[i] = ans / count;
+                        if(solution[i] >= 1){
+                            solution[i] = 1.0;
+                        }
+                        else if(solution[i] <= 0){
+                            solution[i] = 0.0;
+                        }
+                        else{
+                            solution[i] = solution[i];
+                            randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
+                        }
+                    }
+                }else{
+                    double total_weight = 0.0;
+                    for(int j = 0; j < (int)randomSamplePts.size(); j++){
+                        double dist = (randomSamplePts[j].pt - samplePts[i].pt).norm();
+                        if(dist < radius && samplePts[i].distToAbsorbingBoundary > 0.02){
+                            if(randomSamplePts[j].pt == zombie::Vector<DIM>::Zero()){
+                                continue;
+                            }
+                            double weight = 1 - (dist * dist / (radius * radius));
+                            ans += randomSamplePts[j].statistics.getEstimatedSolution() * weight;
+                            total_weight += weight;
+                            count += 1;
+                        }
+                    }
+                    if(count == 0){
+                        solution[i] = samplePts[i].statistics.getEstimatedSolution();
+                    }else{
+                        solution[i] = ans / total_weight;
+                        if(solution[i] >= 1){
+                            solution[i] = 1.0;
+                        }
+                        else if(solution[i] <= 0){
+                            solution[i] = 0.0;
+                        }
+                        else{
+                            solution[i] = solution[i];
+                            randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
+                        }
+                    }
+                }
+                diff += std::abs(solution[i] - old_value);
+                //std::cout << randomSamplePts[i].statistics.getEstimatedSolution() << " " << solution[i] << std::endl;
+                
+                // 输出进度
+                if (i % 100 == 0) {
+                    std::cout << "Progress: " << (i * 100.0 / samplePts.size()) << "%\r";
+                    std::cout.flush();
+                }
+            }
+            iteration++;
+            std::cout << "Iteration: " << iteration << ", Average difference: " << diff / samplePts.size() << std::endl;
+            double avg_diff = diff / samplePts.size();
+            if(avg_diff < 1e-2 || iteration > 10){
+                solution = old_solution;
+                std::cout << "Converged with average difference: " << avg_diff << std::endl;
+                break;
+            }
+        }
+    }
+    
+}
+
 
 template <typename T, size_t DIM>
 void runSolver(const std::string& solverType, const json& config,
@@ -574,6 +776,24 @@ void runSolver(const std::string& solverType, const json& config,
 
         // extract solution from sample points
         getSolutionOurs<T, DIM>(samplePts, solution, cachesBalls);
+    } else if (solverType == "meanvalue"){  
+        // create sample points to estimate solution at
+        std::vector<zombie::SamplePoint<T, DIM>> samplePts;
+        std::vector<zombie::SamplePoint<T, DIM>> RandomSamplePts;
+        createSamplePoints<T, DIM>(solveLocations, distanceInfo, samplePts);
+        
+        createRandomSamplePoints<T, DIM>(solveLocations, distanceInfo, RandomSamplePts);
+        std::cout << "SamplePts size: " << samplePts.size() << std::endl;
+        std::cout << "RandomSamplePts size: " << RandomSamplePts.size() << std::endl;
+        // run walk on stars
+        runWalkOnStars<T, DIM>(config, queries, pde, solveDoubleSided, RandomSamplePts);
+        runWalkOnStars<T, DIM>(config, queries, pde, solveDoubleSided, samplePts);
+        
+
+        bool weighted = getOptional<bool>(config, "weighted", false);
+        bool recursive = getOptional<bool>(config, "recursive", false);
+        // extract solution from sample points
+        getSolutionMean<T, DIM>(samplePts, RandomSamplePts, solution, weighted, recursive);
     } else{
         std::cerr << "Unknown solver type: " << solverType << std::endl;
         exit(EXIT_FAILURE);

@@ -1,0 +1,37 @@
+{
+    "solverType": "meanvalue",
+    "solver": {
+        "nWalks": 2048,
+        "maxWalkLength": 1024,
+        "epsilonShellForAbsorbingBoundary": 0.001,
+        "epsilonShellForReflectingBoundary": 0.001,
+        "russianRouletteThreshold": 0.99,
+        "splittingThreshold": 1.5,
+        "ignoreAbsorbingBoundaryContribution": false,
+        "ignoreReflectingBoundaryContribution": true,
+        "ignoreSourceContribution": true,
+        "runSingleThreaded": true
+    },
+    "modelProblem": {
+        "geometry": "demo/model_problems/engine/data/geometry.obj",
+        "isReflectingBoundary": "demo/model_problems/engine/data/output_zeroed.pfm",
+        "absorbingBoundaryValue": "demo/model_problems/engine/data/absorbing_boundary_value2.pfm",
+        "reflectingBoundaryValue": "demo/model_problems/engine/data/reflecting_boundary_value.pfm",
+        "sourceValue": "demo/model_problems/engine/data/source_value.pfm",
+        "robinCoeff": 0.0,
+        "absorptionCoeff": 0.0,
+        "useSdfForAbsorbingBoundary": false,
+        "weighted": true
+    },
+    "output": {
+        "solutionFile": "demo/model_problems/engine/solutions/meanvalue_2048.pfm",
+        "gridRes": 256,
+        "boundaryDistanceMask": 0.01,
+        "saveDebug": false,
+        "saveColormapped": true,
+        "colormap": "turbo",
+        "colormapMinVal": 0.0,
+        "colormapMaxVal": 1.1,
+        "csvFilename": "demo/model_problems/engine/solutions/meanvalue_2048.csv"
+    }
+}

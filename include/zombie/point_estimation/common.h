@@ -202,6 +202,12 @@ public:
         return solutionMean;
     }
 
+    void setEstimatedSolution(const T& estimate) {
+        solutionMean = estimate;
+        solutionM2 = T(0.0f);
+        nSolutionEstimates = 1;
+    }
+
     // returns variance of estimated solution
     T getEstimatedSolutionVariance() const {
         int N = std::max(1, nSolutionEstimates - 1);
