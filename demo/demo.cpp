@@ -659,7 +659,7 @@ void getSolutionMean(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
                         }
                         else{
                             solution[i] = solution[i];
-                            randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
+                            //randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
                         }
                     }
                 }else{
@@ -688,7 +688,7 @@ void getSolutionMean(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
                         }
                         else{
                             solution[i] = solution[i];
-                            randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
+                            //randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
                         }
                     }
                 }
@@ -704,10 +704,14 @@ void getSolutionMean(const std::vector<zombie::SamplePoint<T, DIM>>& samplePts,
             iteration++;
             std::cout << "Iteration: " << iteration << ", Average difference: " << diff / samplePts.size() << std::endl;
             double avg_diff = diff / samplePts.size();
-            if(avg_diff < 1e-2 || iteration > 10){
+            if(avg_diff < 3e-3 || iteration > 10){
                 solution = old_solution;
                 std::cout << "Converged with average difference: " << avg_diff << std::endl;
                 break;
+            }else{
+                for(int i = 0; i < randomSamplePts.size(); i++){
+                    randomSamplePts[i].statistics.setEstimatedSolution(solution[i]);
+                }
             }
         }
     }
